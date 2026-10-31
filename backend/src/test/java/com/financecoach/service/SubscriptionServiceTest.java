@@ -1,5 +1,24 @@
 package com.financecoach.service;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import org.mockito.Mock;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Sort;
+
 import com.financecoach.dto.DetectedSubscriptionDto;
 import com.financecoach.dto.SubscriptionDto;
 import com.financecoach.dto.SubscriptionRequest;
@@ -11,22 +30,6 @@ import com.financecoach.entity.User;
 import com.financecoach.repository.SubscriptionRepository;
 import com.financecoach.repository.TransactionRepository;
 import com.financecoach.repository.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Sort;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class SubscriptionServiceTest {

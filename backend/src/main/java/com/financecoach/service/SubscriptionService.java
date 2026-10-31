@@ -1,5 +1,22 @@
 package com.financecoach.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.financecoach.dto.DetectedSubscriptionDto;
 import com.financecoach.dto.SubscriptionDto;
 import com.financecoach.dto.SubscriptionRequest;
@@ -12,17 +29,6 @@ import com.financecoach.exception.ResourceNotFoundException;
 import com.financecoach.repository.SubscriptionRepository;
 import com.financecoach.repository.TransactionRepository;
 import com.financecoach.repository.UserRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
 
 @Service
 public class SubscriptionService {

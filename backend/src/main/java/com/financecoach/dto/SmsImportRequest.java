@@ -22,3 +22,4 @@ public class SmsImportRequest {
         this.smsText = smsText;
     }
 }
+
