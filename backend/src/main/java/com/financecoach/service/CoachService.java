@@ -1,14 +1,5 @@
 package com.financecoach.service;
 
-import com.financecoach.dto.*;
-import com.financecoach.entity.*;
-import com.financecoach.repository.FinancialGoalRepository;
-import com.financecoach.repository.FinancialProfileRepository;
-import com.financecoach.repository.TransactionRepository;
-import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -16,6 +7,22 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.financecoach.dto.CoachResponse;
+import com.financecoach.dto.GoalProjectionDto;
+import com.financecoach.dto.SimulationRequest;
+import com.financecoach.dto.SimulationResponse;
+import com.financecoach.entity.FinancialGoal;
+import com.financecoach.entity.FinancialProfile;
+import com.financecoach.entity.GoalStatus;
+import com.financecoach.entity.TransactionType;
+import com.financecoach.repository.FinancialGoalRepository;
+import com.financecoach.repository.FinancialProfileRepository;
+import com.financecoach.repository.TransactionRepository;
 
 @Service
 public class CoachService {

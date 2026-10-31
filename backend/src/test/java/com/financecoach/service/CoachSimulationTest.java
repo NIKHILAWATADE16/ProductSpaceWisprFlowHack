@@ -86,3 +86,4 @@ public class CoachSimulationTest {
         assertNotNull(response.getSummaryText());
     }
 }
+

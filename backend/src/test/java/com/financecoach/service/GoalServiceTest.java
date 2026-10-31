@@ -95,3 +95,4 @@ public class GoalServiceTest {
         assertEquals(new BigDecimal("30000.00"), dto.getMonthlySavingsRequired());
     }
 }
+
