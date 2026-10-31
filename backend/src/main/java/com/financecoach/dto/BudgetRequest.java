@@ -1,0 +1,3 @@
+package com.financecoach.dto;
+import jakarta.validation.constraints.*; import java.math.BigDecimal;
+public class BudgetRequest { @NotBlank @Size(max=100) private String category; @NotNull @DecimalMin("0.01") private BigDecimal monthlyLimit; @NotNull @Min(1) @Max(12) private Integer month; @NotNull @Min(2000) private Integer year; public String getCategory(){return category;}public void setCategory(String v){category=v;}public BigDecimal getMonthlyLimit(){return monthlyLimit;}public void setMonthlyLimit(BigDecimal v){monthlyLimit=v;}public Integer getMonth(){return month;}public void setMonth(Integer v){month=v;}public Integer getYear(){return year;}public void setYear(Integer v){year=v;} }
