@@ -55,9 +55,9 @@ public class DemoDataSeeder implements CommandLineRunner {
                 log.info("No demo user found. Seeding initial demo data...");
                 seedDemoData(demoEmail, "Password123!", "Alex Morgan", false);
             } else {
-                long txCount = txRepo.count();
-                if (txCount == 0) {
-                    log.info("Demo user exists with 0 transactions. Seeding demo transactions...");
+                long txCount = txRepo.findByUserId(existing.get().getId(), Sort.by("id")).size();
+                if (txCount < 100) {
+                    log.info("Demo user has {} transactions. Refreshing the balanced 12-month demo history...", txCount);
                     seedDemoData(demoEmail, "Password123!", "Alex Morgan", true);
                 }
             }
@@ -89,7 +89,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         // 1. Financial Profile
         FinancialProfile profile = profileRepo.findByUserId(uid).orElse(new FinancialProfile());
         profile.setUser(user);
-        profile.setMonthlyIncome(new BigDecimal("6500.00"));
+        profile.setMonthlyIncome(new BigDecimal("12500.00"));
         profile.setMonthlyFixedExpenses(new BigDecimal("3200.00"));
         profile.setCurrentSavings(new BigDecimal("12500.00"));
         profile.setEmergencyFund(new BigDecimal("18000.00"));
@@ -129,60 +129,48 @@ public class DemoDataSeeder implements CommandLineRunner {
             subscriptionRepo.saveAll(List.of(s1, s2, s3, s4));
         }
 
-        // 5. 3 Months of Transactions (Current month, month -1, month -2)
+        // 5. Twelve months of balanced transactions across every supported category.
         List<Transaction> demoTxs = new ArrayList<>();
 
-        for (int monthOffset = 2; monthOffset >= 0; monthOffset--) {
+        for (int monthOffset = 11; monthOffset >= 0; monthOffset--) {
             LocalDate monthBase = now.minusMonths(monthOffset);
             LocalDate firstDay = monthBase.with(TemporalAdjusters.firstDayOfMonth());
 
-            // Monthly Salary (1st)
-            demoTxs.add(createTx(user, firstDay, new BigDecimal("6500.00"), TransactionType.INCOME,
+            // Income: higher salary plus an occasional freelance payment.
+            demoTxs.add(createTx(user, firstDay, new BigDecimal("12500.00"), TransactionType.INCOME,
                     "Salary", "Tech Corp Salary Direct Deposit", "Tech Corp", "Direct Deposit"));
+            if (monthOffset % 3 == 0) {
+                demoTxs.add(createTx(user, firstDay.plusDays(20), new BigDecimal("1800.00"), TransactionType.INCOME,
+                        "Income", "Freelance consulting payment", "Freelance Client", "Bank Transfer"));
+            }
 
-            // Rent (2nd)
-            demoTxs.add(createTx(user, firstDay.plusDays(1), new BigDecimal("1800.00"), TransactionType.EXPENSE,
-                    "Housing", "Maple Apartments Monthly Rent", "Maple Apartments", "ACH"));
-
-            // Utilities (5th & 10th)
-            demoTxs.add(createTx(user, firstDay.plusDays(4), new BigDecimal("124.50"), TransactionType.EXPENSE,
-                    "Utilities", "Pacific Gas & Electric Utility Bill", "PG&E", "AutoPay"));
-            demoTxs.add(createTx(user, firstDay.plusDays(9), new BigDecimal("79.99"), TransactionType.EXPENSE,
-                    "Utilities", "Comcast Xfinity High-Speed Internet", "Comcast", "Card"));
-
-            // Groceries across month
-            demoTxs.add(createTx(user, firstDay.plusDays(3), new BigDecimal("175.40"), TransactionType.EXPENSE,
-                    "Groceries", "Whole Foods Market Grocery", "Whole Foods", "Card"));
-            demoTxs.add(createTx(user, firstDay.plusDays(11), new BigDecimal("138.60"), TransactionType.EXPENSE,
-                    "Groceries", "Trader Joe's Supermarket", "Trader Joe's", "Card"));
-            demoTxs.add(createTx(user, firstDay.plusDays(18), new BigDecimal("152.10"), TransactionType.EXPENSE,
-                    "Groceries", "Safeway Store #1842", "Safeway", "Card"));
-
-            // Dining Out
-            demoTxs.add(createTx(user, firstDay.plusDays(6), new BigDecimal("24.50"), TransactionType.EXPENSE,
-                    "Dining Out", "Chipotle Mexican Grill", "Chipotle", "Card"));
-            demoTxs.add(createTx(user, firstDay.plusDays(8), new BigDecimal("16.75"), TransactionType.EXPENSE,
-                    "Dining Out", "Starbucks Coffee #421", "Starbucks", "Card"));
-            demoTxs.add(createTx(user, firstDay.plusDays(14), new BigDecimal("115.00"), TransactionType.EXPENSE,
-                    "Dining Out", "Italian Osteria Dinner", "Italian Osteria", "Card"));
-            demoTxs.add(createTx(user, firstDay.plusDays(21), new BigDecimal("34.80"), TransactionType.EXPENSE,
-                    "Dining Out", "Sweetgreen Salads Downtown", "Sweetgreen", "Card"));
-
-            // Subscriptions (Recurring)
-            demoTxs.add(createTx(user, firstDay.plusDays(7), new BigDecimal("15.49"), TransactionType.EXPENSE,
-                    "Entertainment", "NETFLIX.COM *1234 CA", "Netflix", "AutoPay", true));
-            demoTxs.add(createTx(user, firstDay.plusDays(13), new BigDecimal("10.99"), TransactionType.EXPENSE,
-                    "Entertainment", "SPOTIFY USA 877-778-1161 NY", "Spotify", "AutoPay", true));
-            demoTxs.add(createTx(user, firstDay.plusDays(17), new BigDecimal("45.00"), TransactionType.EXPENSE,
-                    "Health", "PLANET FITNESS CLUB #4912", "Planet Fitness", "AutoPay", true));
-            demoTxs.add(createTx(user, firstDay.plusDays(23), new BigDecimal("28.50"), TransactionType.EXPENSE,
-                    "Utilities", "AMAZON WEB SERVICES AWS.AMAZON", "AWS", "Card", true));
-
-            // Shopping
-            demoTxs.add(createTx(user, firstDay.plusDays(15), new BigDecimal("89.90"), TransactionType.EXPENSE,
-                    "Shopping", "Amazon.com*Order #112-9843", "Amazon", "Card"));
-            demoTxs.add(createTx(user, firstDay.plusDays(24), new BigDecimal("64.20"), TransactionType.EXPENSE,
-                    "Shopping", "Target Store #2819", "Target", "Card"));
+            // Similar-sized expense rows keep the dashboard category mix readable.
+            demoTxs.add(createTx(user, firstDay.plusDays(1), new BigDecimal("420.00"), TransactionType.EXPENSE,
+                    "Housing", "Apartment maintenance and rent contribution", "Maple Apartments", "ACH"));
+            demoTxs.add(createTx(user, firstDay.plusDays(3), new BigDecimal("360.00"), TransactionType.EXPENSE,
+                    "Food & Dining", "SWIGGY grocery and dining order", "Swiggy", "UPI"));
+            demoTxs.add(createTx(user, firstDay.plusDays(5), new BigDecimal("310.00"), TransactionType.EXPENSE,
+                    "Transport", "UBER rides and fuel", "Uber", "Card"));
+            demoTxs.add(createTx(user, firstDay.plusDays(7), new BigDecimal("330.00"), TransactionType.EXPENSE,
+                    "Shopping", "AMAZON household order", "Amazon", "Card"));
+            demoTxs.add(createTx(user, firstDay.plusDays(9), new BigDecimal("290.00"), TransactionType.EXPENSE,
+                    "Entertainment", "NETFLIX, cinema, and music", "Netflix", "AutoPay", true));
+            demoTxs.add(createTx(user, firstDay.plusDays(11), new BigDecimal("340.00"), TransactionType.EXPENSE,
+                    "Utilities", "Airtel internet and electricity bill", "Airtel", "AutoPay"));
+            demoTxs.add(createTx(user, firstDay.plusDays(13), new BigDecimal("280.00"), TransactionType.EXPENSE,
+                    "Healthcare", "APOLLO PHARMACY and doctor visit", "Apollo Pharmacy", "Card"));
+            demoTxs.add(createTx(user, firstDay.plusDays(15), new BigDecimal("260.00"), TransactionType.EXPENSE,
+                    "Education", "Udemy professional course", "Udemy", "Card"));
+            demoTxs.add(createTx(user, firstDay.plusDays(17), new BigDecimal("300.00"), TransactionType.EXPENSE,
+                    "Travel", "AIRBNB weekend booking", "Airbnb", "Card"));
+            demoTxs.add(createTx(user, firstDay.plusDays(19), new BigDecimal("270.00"), TransactionType.EXPENSE,
+                    "Investments", "Monthly SIP investment", "Groww", "Bank Transfer"));
+            demoTxs.add(createTx(user, firstDay.plusDays(21), new BigDecimal("250.00"), TransactionType.EXPENSE,
+                    "Subscriptions", "SPOTIFY and cloud membership", "Spotify", "AutoPay", true));
+            demoTxs.add(createTx(user, firstDay.plusDays(23), new BigDecimal("240.00"), TransactionType.EXPENSE,
+                    "Personal Care", "Salon and grooming appointment", "Salon", "Card"));
+            demoTxs.add(createTx(user, firstDay.plusDays(25), new BigDecimal("80.00"), TransactionType.EXPENSE,
+                    "Other", "Local cash expense", "Local Merchant", "Cash"));
         }
 
         // Save transactions with duplicate check
@@ -196,10 +184,10 @@ public class DemoDataSeeder implements CommandLineRunner {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("status", "SUCCESS");
-        result.put("message", "Demo financial profile, goals, budgets, subscriptions, and 3-month transactions populated.");
+        result.put("message", "Demo financial profile, goals, budgets, subscriptions, and 12-month balanced transactions populated.");
         result.put("email", email);
         result.put("password", rawPassword);
-        result.put("monthlyIncome", "6500.00");
+        result.put("monthlyIncome", "12500.00");
         result.put("goalsCount", 3);
         result.put("budgetsCount", 4);
         result.put("subscriptionsCount", 4);

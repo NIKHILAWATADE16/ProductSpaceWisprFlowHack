@@ -57,6 +57,21 @@ public class StatementParserTest {
     }
 
     @Test
+    public void testCsvPreservesExplicitCategoryColumn() {
+        String csv = "Date,Description,Amount,Type,Category,Merchant,Payment Method\n" +
+            "2026-10-01,Online grocery and household supplies,4850.00,EXPENSE,Food & Dining,BigBasket,UPI\n" +
+            "2026-10-02,Tech Corp Salary Credit,125000.00,INCOME,Salary,Tech Corp,Direct Deposit\n";
+
+        InputStream in = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+        List<ParsedStatementRow> rows = CsvStatementParser.parse(in);
+
+        Assertions.assertEquals(2, rows.size());
+        Assertions.assertEquals("Food & Dining", rows.get(0).getCategory());
+        Assertions.assertEquals("Salary", rows.get(1).getCategory());
+        Assertions.assertEquals("BigBasket", rows.get(0).getMerchant());
+    }
+
+    @Test
     public void testComputeImportHashConsistency() {
         LocalDate date = LocalDate.of(2026, 10, 15);
         BigDecimal amount = new BigDecimal("450.00");
@@ -176,6 +191,13 @@ public class StatementParserTest {
         ParsedStatementRow rRev = rows.get(7);
         Assertions.assertEquals(new BigDecimal("375.00"), rRev.getAmount());
         Assertions.assertEquals(TransactionType.INCOME, rRev.getType());
+    }
+
+    @Test
+    public void extractsUsefulMerchantFromCsvStyleNarrations() {
+        Assertions.assertEquals("SWIGGY", CsvStatementParser.extractMerchant("UPI/SWIGGY/YESB/123456/Order"));
+        Assertions.assertEquals("Taco Bell Ober", CsvStatementParser.extractMerchant("UPI/Taco Bell Ober/YESB/615262161084/Sent using P"));
+        Assertions.assertEquals("ATHARV SHANMUKH DHUP", CsvStatementParser.extractMerchant("MB:SENT TO ATHARV SHANMUKH DHUP MB-998312992146"));
     }
 
     @Test

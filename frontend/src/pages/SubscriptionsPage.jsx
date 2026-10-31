@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BellRing, CalendarClock, CheckCircle2, CircleDollarSign, PauseCircle, Plus, RefreshCw, Repeat, Search, Sparkles, Trash2 } from 'lucide-react';
+import { BellRing, CalendarClock, CheckCircle2, IndianRupee, PauseCircle, Plus, RefreshCw, Repeat, Search, Sparkles, Trash2 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/common/PageHeader';
 import MetricCard from '../components/common/MetricCard';
@@ -156,7 +156,7 @@ export default function SubscriptionsPage() {
 
     <div className="grid gap-4 sm:grid-cols-3">
       <MetricCard icon={Repeat} label="Active subscriptions" value={active.length} helper="Detected or confirmed" tone="blue" />
-      <MetricCard icon={CircleDollarSign} label="Estimated monthly cost" value={formatCurrency(monthly)} helper="Normalized frequency" tone="amber" />
+      <MetricCard icon={IndianRupee} label="Estimated monthly cost" value={formatCurrency(monthly)} helper="Normalized frequency" tone="amber" />
       <MetricCard icon={CalendarClock} label="Next payment" value={next ? formatDate(next.nextPaymentDate, { year: undefined }) : '—'} helper="Upcoming renewal" tone="emerald" />
     </div>
 

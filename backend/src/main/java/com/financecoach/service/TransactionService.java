@@ -201,7 +201,11 @@ public class TransactionService {
             }
 
             // Automatic rule-based categorization
-            String category = categorizationService.categorize(u.getId(), row.getDescription(), row.getMerchant());
+            String category = row.getCategory();
+            if (category == null || category.isBlank() || category.equalsIgnoreCase("Other")) {
+                category = categorizationService.categorize(
+                    u.getId(), row.getDescription(), row.getMerchant(), row.getType());
+            }
 
             Transaction t = new Transaction(
                 u,

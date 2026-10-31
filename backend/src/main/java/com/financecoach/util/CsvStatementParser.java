@@ -43,6 +43,7 @@ public class CsvStatementParser {
             Integer debitCol = findColumn(headerMap, "debit", "withdrawal", "dr", "debit amount");
             Integer creditCol = findColumn(headerMap, "credit", "deposit", "cr", "credit amount");
             Integer typeCol = findColumn(headerMap, "type", "cr/dr", "dr/cr", "transaction type");
+            Integer categoryCol = findColumn(headerMap, "category", "transaction category", "expense category");
             Integer merchantCol = findColumn(headerMap, "merchant", "payee", "party");
 
             if (dateCol == null || descCol == null || (amountCol == null && debitCol == null && creditCol == null)) {
@@ -109,8 +110,11 @@ public class CsvStatementParser {
                 if (merchant == null || merchant.isBlank()) {
                     merchant = extractMerchant(description);
                 }
+                String category = categoryCol != null ? getSafeValue(record, categoryCol) : null;
 
-                rows.add(new ParsedStatementRow(date, description, amount, type, merchant, "Imported"));
+                ParsedStatementRow parsedRow = new ParsedStatementRow(date, description, amount, type, merchant, "Imported");
+                parsedRow.setCategory(category);
+                rows.add(parsedRow);
             }
 
         } catch (BadRequestException e) {
@@ -147,10 +151,23 @@ public class CsvStatementParser {
 
     public static String extractMerchant(String description) {
         if (description == null || description.isBlank()) return null;
-        // Strip common prefixes like UPI/, POS/, ACH/, NEFT/, IMPS/
-        String cleaned = description.replaceAll("^(UPI/|POS/|ACH/|NEFT/|IMPS/|DEBIT CARD/|ATM/|PURCHASE/|TRF/)", "").trim();
-        String[] parts = cleaned.split("[-/]");
-        return parts[0].trim();
+
+        String cleaned = description.trim()
+            .replaceFirst("(?i)^(?:UPI|POS|ACH|NEFT|IMPS|DEBIT CARD|ATM|PURCHASE|TRF)[/:\\-]\\s*", "")
+            .replaceFirst("(?i)^REV[-/]UPI[/:\\-]\\s*", "")
+            .replaceFirst("(?i)^MB:\\s*SENT TO\\s+", "")
+            .replaceFirst("(?i)^NEFT\\s+IN\\S*\\s*", "")
+            .replaceFirst("(?i)^NACH[-/]APB[-/]CR[-/]", "")
+            .replaceFirst("(?i)^INT\\.?PD[:/\\-]?\\s*", "");
+
+        String[] parts = cleaned.split("[/|]");
+        String merchant = parts[0].replaceAll("(?i)\\b(?:YESB|UTIB|HDFC|ICIC|SBI|AXIS)\\b", "")
+            .replaceAll("(?i)\\s+MB[-:]?\\s*\\d{4,}.*$", "")
+            .replaceAll("(?i)\\b(?:REF|UTR|TXN|TERMINAL|TERM)\\b.*$", "")
+            .replaceAll("\\b\\d{4,}\\b", "")
+            .replaceAll("\\s+", " ")
+            .trim();
+        return merchant.isBlank() ? null : merchant;
     }
 }
 

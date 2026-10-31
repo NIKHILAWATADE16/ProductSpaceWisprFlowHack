@@ -81,6 +81,10 @@ public class CategorizationService {
      */
     @Transactional(readOnly = true)
     public String categorize(Long userId, String description, String merchant) {
+        return categorize(userId, description, merchant, null);
+    }
+
+    public String categorize(Long userId, String description, String merchant, com.financecoach.entity.TransactionType type) {
         String rawText = ((description != null ? description : "") + " "
                 + (merchant != null ? merchant : "")).toLowerCase(Locale.ROOT);
         String normalizedDescription = normalizeForMatching(description);
@@ -109,7 +113,15 @@ public class CategorizationService {
 
         String builtInCategory = matchBuiltInCategory(normalizedDescription.isBlank()
                 ? normalizedText : normalizedDescription + " " + normalizedMerchant);
-        return builtInCategory != null ? builtInCategory : "Other";
+        if (builtInCategory != null) {
+            return builtInCategory;
+        }
+
+        // Incoming bank credits should not be mistaken for an expense category.
+        if (type == com.financecoach.entity.TransactionType.INCOME) {
+            return matchIncomeCategory(normalizedDescription + " " + normalizedMerchant);
+        }
+        return "Other";
     }
 
     private boolean matchesRule(CategorizationRule rule, String rawText, String normalizedText) {
@@ -121,6 +133,20 @@ public class CategorizationService {
         String normalizedKeyword = normalizeForMatching(lowerKeyword);
         return rawText.contains(lowerKeyword)
                 || (!normalizedKeyword.isBlank() && normalizedText.contains(normalizedKeyword));
+    }
+
+    private String matchIncomeCategory(String normalizedText) {
+        String paddedText = " " + (normalizedText == null ? "" : normalizedText) + " ";
+        if (paddedText.contains(" salary ") || paddedText.contains(" payroll ")
+                || paddedText.contains(" wages ") || paddedText.contains(" pay credit ")) {
+            return "Salary";
+        }
+        if (paddedText.contains(" freelance ") || paddedText.contains(" dividend ")
+                || paddedText.contains(" refund ") || paddedText.contains(" cashback ")
+                || paddedText.contains(" deposit ") || paddedText.contains(" received ")) {
+            return paddedText.contains(" dividend ") ? "Investments" : "Income";
+        }
+        return "Income";
     }
 
     private String matchBuiltInCategory(String normalizedText) {

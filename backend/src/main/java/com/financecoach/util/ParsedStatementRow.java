@@ -12,6 +12,7 @@ public class ParsedStatementRow {
     private TransactionType type;
     private String merchant;
     private String paymentMethod;
+    private String category;
 
     public ParsedStatementRow() {
     }
@@ -72,6 +73,14 @@ public class ParsedStatementRow {
 
     public void setPaymentMethod(String paymentMethod) {
         this.paymentMethod = paymentMethod;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 }
 

@@ -66,6 +66,18 @@ class CategorizationServiceTest {
     }
 
     @Test
+    void testIncomeRowsAreClassifiedWithoutGenericCreditRule() {
+        when(ruleRepository.findAllRulesForUser(1L)).thenReturn(List.of());
+
+        assertEquals("Income", service.categorize(1L,
+                "NEFT IN22627532707614 RANGAM INFOTECH", "RANGAM INFOTECH",
+                com.financecoach.entity.TransactionType.INCOME));
+        assertEquals("Income", service.categorize(1L,
+                "NACH-APB-CR-CREDIT THROUGH PFMS", null,
+                com.financecoach.entity.TransactionType.INCOME));
+    }
+
+    @Test
     void testExplicitMerchantIsUsedWhenDescriptionIsNoisy() {
         when(ruleRepository.findAllRulesForUser(1L)).thenReturn(List.of());
 

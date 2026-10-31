@@ -17,7 +17,7 @@ function renderInline(text) {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={index} className="font-semibold text-slate-100">{part.slice(2, -2)}</strong>;
     }
-    return <span key={index}>{part}</span>;
+    return <span key={index}>{part.replace(/\*/g, '')}</span>;
   });
 }
 
@@ -30,7 +30,7 @@ function CoachResponse({ content }) {
       if (isList) {
         return <ul key={index} className="list-disc space-y-1.5 pl-5 marker:text-blue-400">{lines.map((line, lineIndex) => <li key={lineIndex}>{renderInline(line.replace(/^[-*]\s+/, ''))}</li>)}</ul>;
       }
-      return <p key={index}>{lines.map((line, lineIndex) => <span key={lineIndex}>{line.replace(/^#{1,3}\s+/, '')}{lineIndex < lines.length - 1 && <br />}</span>)}</p>;
+      return <p key={index}>{lines.map((line, lineIndex) => <span key={lineIndex}>{renderInline(line.replace(/^#{1,3}\s+/, ''))}{lineIndex < lines.length - 1 && <br />}</span>)}</p>;
     })}
   </div>;
 }
