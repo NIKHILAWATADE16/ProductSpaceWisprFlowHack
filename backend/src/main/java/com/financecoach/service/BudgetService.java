@@ -83,9 +83,29 @@ public class BudgetService {
         if (spent == null) {
             spent = BigDecimal.ZERO;
         }
-        BigDecimal utilization = spent.divide(budget.getMonthlyLimit(), 6, RoundingMode.HALF_UP)
-            .multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
-        return new BudgetDto(budget.getId(), budget.getCategory(), budget.getMonthlyLimit(), budget.getMonth(),
-            budget.getYear(), spent, utilization);
+
+        BigDecimal limit = budget.getMonthlyLimit();
+        BigDecimal utilization = BigDecimal.ZERO;
+        if (limit.compareTo(BigDecimal.ZERO) > 0) {
+            utilization = spent.divide(limit, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
+        }
+
+        BigDecimal remaining = limit.subtract(spent);
+        boolean exceeded = spent.compareTo(limit) > 0;
+        BigDecimal overrunAmount = exceeded ? spent.subtract(limit) : BigDecimal.ZERO;
+
+        return new BudgetDto(
+            budget.getId(),
+            budget.getCategory(),
+            limit.setScale(2, RoundingMode.HALF_UP),
+            budget.getMonth(),
+            budget.getYear(),
+            spent.setScale(2, RoundingMode.HALF_UP),
+            utilization,
+            remaining.setScale(2, RoundingMode.HALF_UP),
+            exceeded,
+            overrunAmount.setScale(2, RoundingMode.HALF_UP)
+        );
     }
 }
