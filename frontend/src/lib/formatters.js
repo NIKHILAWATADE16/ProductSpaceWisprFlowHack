@@ -37,6 +37,10 @@ export function monthLabel(month, year) {
     .format(new Date(Number(year), Number(month) - 1, 1));
 }
 
+export function localizeCurrencyText(value) {
+  return typeof value === 'string' ? value.replace(/\$/g, '₹') : value;
+}
+
 export function getErrorMessage(error, fallback = 'Something went wrong. Please try again.') {
   const data = error?.response?.data;
   if (data?.validationErrors && typeof data.validationErrors === 'object') {

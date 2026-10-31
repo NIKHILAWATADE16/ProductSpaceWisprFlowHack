@@ -11,6 +11,7 @@ import {
   Settings2,
   Trash2,
   Upload,
+  MessageSquare,
   X,
 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
@@ -79,6 +80,9 @@ export default function TransactionsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsText, setSmsText] = useState('');
+  const [smsImporting, setSmsImporting] = useState(false);
   const [toast, setToast] = useState('');
   const [importResult, setImportResult] = useState(null);
   const fileRef = useRef(null);
@@ -223,6 +227,31 @@ export default function TransactionsPage() {
     }
   };
 
+  const importSms = async (event) => {
+    event.preventDefault();
+    if (!smsText.trim()) {
+      setError('Paste an SMS statement before importing.');
+      return;
+    }
+    setSmsImporting(true);
+    setError('');
+    try {
+      const { data } = await axiosClient.post('/transactions/import-sms', { smsText: smsText.trim() });
+      const imported = data?.imported ?? data?.importedCount ?? 0;
+      const skipped = data?.skipped ?? data?.skippedDuplicates ?? 0;
+      setImportResult({ imported, skipped, totalParsed: data?.totalParsed ?? imported + skipped });
+      setSmsOpen(false);
+      setSmsText('');
+      setModal('import');
+      setToast(`${imported} transactions imported from SMS`);
+      await load();
+    } catch (err) {
+      setError(getErrorMessage(err, 'This SMS could not be imported. Check that it contains a bank transaction alert.'));
+    } finally {
+      setSmsImporting(false);
+    }
+  };
+
   const deleteRule = async (rule) => {
     if (!window.confirm(`Remove the learned rule for “${rule.keyword}”?`)) return;
     try {
@@ -243,6 +272,7 @@ export default function TransactionsPage() {
       action={<div className="flex flex-wrap gap-2">
         <input ref={fileRef} type="file" accept=".csv,.txt,.pdf" onChange={importFile} className="hidden" />
         <Button variant="secondary" onClick={() => setModal('rules')}><Settings2 className="h-4 w-4" />Rules</Button>
+        <Button variant="secondary" onClick={() => setSmsOpen(true)}><MessageSquare className="h-4 w-4" />Paste SMS</Button>
         <Button variant="secondary" disabled={importing} onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" />{importing ? 'Importing…' : 'Import statement'}</Button>
         <Button onClick={openCreate}><Plus className="h-4 w-4" />Add transaction</Button>
       </div>}
@@ -304,6 +334,14 @@ export default function TransactionsPage() {
         <FormField label="Payment method"><input value={form.paymentMethod} onChange={(event) => setValue('paymentMethod', event.target.value)} className={inputClass} placeholder="Optional" /></FormField>
         <label className="flex items-center gap-2 text-sm text-slate-400 sm:col-span-2"><input type="checkbox" checked={form.recurring} onChange={(event) => setValue('recurring', event.target.checked)} className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-blue-500" />Mark as recurring</label>
         <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="secondary" onClick={() => setModal(null)}>Cancel</Button><Button disabled={saving}>{saving ? 'Saving…' : form.id ? 'Save changes' : 'Save transaction'}</Button></div>
+      </form>
+    </Modal>
+
+    <Modal open={smsOpen} onClose={() => !smsImporting && setSmsOpen(false)} title="Import from SMS" description="Paste a bank alert to turn it into a transaction without sharing it with the coach.">
+      <form onSubmit={importSms} className="space-y-4">
+        <FormField label="Bank SMS"><textarea required rows={7} value={smsText} onChange={(event) => setSmsText(event.target.value)} className={`${inputClass} min-h-40 resize-y`} placeholder="e.g. Your A/C XXXX debited by Rs. 450 at Swiggy on 31-10-2026" /></FormField>
+        <p className="text-xs leading-5 text-slate-500">The parser accepts common debit, credit, UPI, and card alert formats. Duplicate transactions are skipped.</p>
+        <div className="flex justify-end gap-2"><Button type="button" variant="secondary" disabled={smsImporting} onClick={() => setSmsOpen(false)}>Cancel</Button><Button disabled={smsImporting}>{smsImporting ? 'Importing…' : 'Import SMS'}</Button></div>
       </form>
     </Modal>
 

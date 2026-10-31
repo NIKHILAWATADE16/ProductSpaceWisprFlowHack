@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle2, CircleDollarSign, PauseCircle, Plus, RefreshCw, Repeat, Search, Sparkles, Trash2 } from 'lucide-react';
+import { BellRing, CalendarClock, CheckCircle2, CircleDollarSign, PauseCircle, Plus, RefreshCw, Repeat, Search, Sparkles, Trash2 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import PageHeader from '../components/common/PageHeader';
 import MetricCard from '../components/common/MetricCard';
@@ -7,7 +7,7 @@ import { Button, Card, EmptyState, ErrorState, LoadingState } from '../component
 import Modal from '../components/common/Modal';
 import FormField, { inputClass } from '../components/common/FormField';
 import Toast from '../components/common/Toast';
-import { formatCurrency, formatDate, getErrorMessage } from '../lib/formatters';
+import { formatCurrency, formatDate, getErrorMessage, localizeCurrencyText } from '../lib/formatters';
 
 const categories = ['Subscriptions', 'Utilities', 'Entertainment', 'Education', 'Other'];
 const emptyForm = { name: '', amount: '', billingFrequency: 'MONTHLY', nextPaymentDate: new Date().toISOString().slice(0, 10), category: 'Subscriptions' };
@@ -29,6 +29,7 @@ export default function SubscriptionsPage() {
   const [actionId, setActionId] = useState(null);
   const [detecting, setDetecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [alerts, setAlerts] = useState([]);
   const [toast, setToast] = useState('');
   const [form, setForm] = useState(emptyForm);
 
@@ -46,11 +47,16 @@ export default function SubscriptionsPage() {
     }
 
     try {
-      const { data } = await axiosClient.get('/subscriptions/detected');
-      setDetected(Array.isArray(data) ? data : []);
+      const [{ data: detectedData }, { data: alertData }] = await Promise.all([
+        axiosClient.get('/subscriptions/detected'),
+        axiosClient.get('/subscriptions/alerts'),
+      ]);
+      setDetected(Array.isArray(detectedData) ? detectedData : []);
+      setAlerts(Array.isArray(alertData) ? alertData : []);
     } catch {
-      // The recurring register remains usable if transaction detection is unavailable.
+      // The recurring register remains usable if optional insights are unavailable.
       setDetected([]);
+      setAlerts([]);
     }
   }, []);
 
@@ -155,6 +161,8 @@ export default function SubscriptionsPage() {
     </div>
 
     {error && <ErrorState message={error} onRetry={load} />}
+
+    {alerts.length > 0 && <Card className="p-5 sm:p-6"><div className="flex items-center gap-2"><BellRing className="h-5 w-5 text-amber-400" /><div><h2 className="font-semibold text-white">Subscription alerts</h2><p className="mt-1 text-sm text-slate-500">Price changes and unused subscriptions worth reviewing.</p></div></div><div className="mt-5 grid gap-3 lg:grid-cols-2">{alerts.map((item) => <div key={item.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-medium text-slate-200">{item.name}</p><p className="mt-1 text-xs text-slate-500">{item.category || 'Other'}</p></div><span className="rounded-lg bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-300">{item.priceChangeAlert ? 'Price change' : 'Unused'}</span></div>{item.priceChangeAlert && <p className="mt-3 text-sm leading-6 text-slate-300">{localizeCurrencyText(item.priceChangeMessage || `New amount: ${formatCurrency(item.newAmount)}`)}</p>}{item.unusedAlert && <p className="mt-3 text-sm leading-6 text-slate-300">{localizeCurrencyText(item.unusedMessage || `No recent activity for ${item.daysInactive} days.`)}</p>}</div>)}</div></Card>}
 
     <Card className="p-5 sm:p-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
