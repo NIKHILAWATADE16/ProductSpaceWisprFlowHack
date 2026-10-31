@@ -7,6 +7,7 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -16,8 +17,6 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 public class StatementParserTest {
 
@@ -31,14 +30,14 @@ public class StatementParserTest {
         InputStream in = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
         List<ParsedStatementRow> rows = CsvStatementParser.parse(in);
 
-        assertEquals(3, rows.size());
-        assertEquals(LocalDate.of(2026, 10, 15), rows.get(0).getDate());
-        assertEquals("Uber ride", rows.get(0).getDescription());
-        assertEquals(new BigDecimal("450.00"), rows.get(0).getAmount());
-        assertEquals(TransactionType.EXPENSE, rows.get(0).getType());
+        Assertions.assertEquals(3, rows.size());
+        Assertions.assertEquals(LocalDate.of(2026, 10, 15), rows.get(0).getDate());
+        Assertions.assertEquals("Uber ride", rows.get(0).getDescription());
+        Assertions.assertEquals(new BigDecimal("450.00"), rows.get(0).getAmount());
+        Assertions.assertEquals(TransactionType.EXPENSE, rows.get(0).getType());
 
-        assertEquals(LocalDate.of(2026, 10, 16), rows.get(1).getDate());
-        assertEquals(TransactionType.INCOME, rows.get(1).getType());
+        Assertions.assertEquals(LocalDate.of(2026, 10, 16), rows.get(1).getDate());
+        Assertions.assertEquals(TransactionType.INCOME, rows.get(1).getType());
     }
 
     @Test
@@ -50,11 +49,11 @@ public class StatementParserTest {
         InputStream in = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
         List<ParsedStatementRow> rows = CsvStatementParser.parse(in);
 
-        assertEquals(2, rows.size());
-        assertEquals(new BigDecimal("1200.00"), rows.get(0).getAmount());
-        assertEquals(TransactionType.EXPENSE, rows.get(0).getType());
-        assertEquals(new BigDecimal("45000.00"), rows.get(1).getAmount());
-        assertEquals(TransactionType.INCOME, rows.get(1).getType());
+        Assertions.assertEquals(2, rows.size());
+        Assertions.assertEquals(new BigDecimal("1200.00"), rows.get(0).getAmount());
+        Assertions.assertEquals(TransactionType.EXPENSE, rows.get(0).getType());
+        Assertions.assertEquals(new BigDecimal("45000.00"), rows.get(1).getAmount());
+        Assertions.assertEquals(TransactionType.INCOME, rows.get(1).getType());
     }
 
     @Test
@@ -67,14 +66,13 @@ public class StatementParserTest {
         String hash2 = StatementImportHelper.computeImportHash(1L, date, amount, desc);
         String hashDifferent = StatementImportHelper.computeImportHash(2L, date, amount, desc);
 
-        assertNotNull(hash1);
-        assertEquals(hash1, hash2, "Identical inputs must yield identical hash");
-        assertNotEquals(hash1, hashDifferent, "Different user ID must yield different hash");
+        Assertions.assertNotNull(hash1);
+        Assertions.assertEquals(hash1, hash2, "Identical inputs must yield identical hash");
+        Assertions.assertNotEquals(hash1, hashDifferent, "Different user ID must yield different hash");
     }
 
     @Test
     public void testPdfStatementParsing() throws Exception {
-        // Generate an in-memory PDF statement using PDFBox 3
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage();
@@ -98,20 +96,36 @@ public class StatementParserTest {
         InputStream pdfIn = new ByteArrayInputStream(out.toByteArray());
         List<ParsedStatementRow> rows = PdfStatementParser.parse(pdfIn);
 
-        assertNotNull(rows);
-        assertFalse(rows.isEmpty());
-        assertTrue(rows.stream().anyMatch(r -> r.getAmount().compareTo(new BigDecimal("499.00")) == 0));
-        assertTrue(rows.stream().anyMatch(r -> r.getType() == TransactionType.INCOME));
+        Assertions.assertNotNull(rows);
+        Assertions.assertFalse(rows.isEmpty());
+        Assertions.assertTrue(rows.stream().anyMatch(r -> r.getAmount().compareTo(new BigDecimal("499.00")) == 0));
+        Assertions.assertTrue(rows.stream().anyMatch(r -> r.getType() == TransactionType.INCOME));
     }
 
     @Test
     public void testPdfEmptyOrCorruptedRejection() {
-        // Empty stream must throw BadRequestException
         InputStream emptyIn = new ByteArrayInputStream(new byte[0]);
-        assertThrows(BadRequestException.class, () -> PdfStatementParser.parse(emptyIn));
+        Assertions.assertThrows(BadRequestException.class, () -> PdfStatementParser.parse(emptyIn));
 
-        // Corrupted stream must throw BadRequestException
         InputStream corruptIn = new ByteArrayInputStream("Not a PDF content".getBytes(StandardCharsets.UTF_8));
-        assertThrows(BadRequestException.class, () -> PdfStatementParser.parse(corruptIn));
+        Assertions.assertThrows(BadRequestException.class, () -> PdfStatementParser.parse(corruptIn));
+    }
+
+    /**
+     * Entry point allowing direct execution from IDEs without JUnit runner errors.
+     */
+    public static void main(String[] args) {
+        System.out.println("Running StatementParserTest directly...");
+        StatementParserTest test = new StatementParserTest();
+        test.testCsvStatementParsing();
+        test.testCsvWithDebitCreditColumns();
+        test.testComputeImportHashConsistency();
+        try {
+            test.testPdfStatementParsing();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        test.testPdfEmptyOrCorruptedRejection();
+        System.out.println("All StatementParserTest tests passed successfully!");
     }
 }
