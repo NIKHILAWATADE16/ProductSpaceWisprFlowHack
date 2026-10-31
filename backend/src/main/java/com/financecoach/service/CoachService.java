@@ -7,11 +7,18 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.financecoach.ai.DeterministicCoachFallback;
+import com.financecoach.ai.FinancialContextBuilder;
+import com.financecoach.ai.FinancialContextSummary;
+import com.financecoach.ai.GeminiClient;
 import com.financecoach.dto.CoachResponse;
 import com.financecoach.dto.GoalProjectionDto;
 import com.financecoach.dto.SimulationRequest;
@@ -27,16 +34,44 @@ import com.financecoach.repository.TransactionRepository;
 @Service
 public class CoachService {
 
+    private static final Logger log = LoggerFactory.getLogger(CoachService.class);
+
+    private static final String SYSTEM_INSTRUCTION =
+            "You are an expert, encouraging, and highly analytical AI Financial Coach for a personal finance system with a Living Money Model.\n" +
+            "Your objective is to provide actionable, practical financial guidance strictly grounded in the user's provided real financial data.\n\n" +
+            "CRITICAL SAFETY & COMPLIANCE GUARDRAILS:\n" +
+            "1. Ground all answers strictly in the user's provided financial numbers (income, expenses, savings rate, goals, budgets, subscriptions). Never invent or hallucinate financial numbers.\n" +
+            "2. STRICT PROHIBITION: DO NOT recommend specific individual stocks, crypto tokens, mutual funds, ETFs, or market securities.\n" +
+            "3. STRICT PROHIBITION: DO NOT guarantee investment returns, yields, interest rates, or market outcomes.\n" +
+            "4. Distinguish clearly between calculated facts (e.g. 'You spent $800 on dining out') and practical suggestions (e.g. 'Setting a weekly dining budget of $150 could save $200/mo').\n" +
+            "5. Format responses clearly with markdown bolding and bullet points for readability. Keep replies focused, empathetic, and concise (2-4 paragraphs maximum).";
+
     private final TransactionRepository tx;
     private final FinancialGoalRepository goalRepo;
     private final FinancialProfileRepository profileRepo;
+    private final GeminiClient geminiClient;
+    private final FinancialContextBuilder contextBuilder;
+    private final DeterministicCoachFallback fallback;
 
     public CoachService(TransactionRepository tx,
                         FinancialGoalRepository goalRepo,
                         FinancialProfileRepository profileRepo) {
+        this(tx, goalRepo, profileRepo, null, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CoachService(TransactionRepository tx,
+                        FinancialGoalRepository goalRepo,
+                        FinancialProfileRepository profileRepo,
+                        GeminiClient geminiClient,
+                        FinancialContextBuilder contextBuilder,
+                        DeterministicCoachFallback fallback) {
         this.tx = tx;
         this.goalRepo = goalRepo;
         this.profileRepo = profileRepo;
+        this.geminiClient = geminiClient;
+        this.contextBuilder = contextBuilder;
+        this.fallback = fallback;
     }
 
     @Transactional(readOnly = true)
@@ -148,13 +183,38 @@ public class CoachService {
 
     @Transactional(readOnly = true)
     public CoachResponse chat(Long uid, String question) {
-        String q = question == null ? "" : question.toLowerCase();
-        if (q.contains("spend") || q.contains("highest")) {
-            return new CoachResponse("Review your monthly category report to identify the largest expense areas. I can only provide guidance from recorded transactions.");
+        FinancialContextSummary context = contextBuilder.buildContext(uid);
+
+        if (question == null || question.trim().isEmpty()) {
+            return new CoachResponse(
+                    "I am your AI Financial Coach. Ask me about your spending breakdown, savings rate, goal progress, or how to optimize your monthly surplus.",
+                    "deterministic");
         }
-        if (q.contains("save") || q.contains("savings")) {
-            return new CoachResponse("Use the simulator to test income or expense changes, then compare the resulting savings rate before changing your plan.");
+
+        String trimmedQuestion = question.trim();
+
+        // 1. Attempt Gemini Generation
+        if (geminiClient.isConfigured()) {
+            try {
+                String promptWithContext = context.getPromptContextText() +
+                        "\n\nUSER QUESTION: " + trimmedQuestion;
+
+                Optional<String> aiResponse = geminiClient.generateContent(SYSTEM_INSTRUCTION, promptWithContext);
+                if (aiResponse.isPresent() && !aiResponse.get().isBlank()) {
+                    CoachResponse res = new CoachResponse(aiResponse.get());
+                    res.setSource("gemini");
+                    return res;
+                }
+            } catch (Exception e) {
+                log.warn("Error calling Gemini AI: {}", e.getMessage());
+            }
         }
-        return new CoachResponse("I can help explain recorded spending, savings rates, goals, and what-if scenarios. Try asking where spending is highest or how to improve savings.");
+
+        // 2. Deterministic Fallback
+        log.info("Generating deterministic coach response for user {}", uid);
+        String fallbackResponse = fallback.generateFallback(context, trimmedQuestion);
+        CoachResponse res = new CoachResponse(fallbackResponse);
+        res.setSource("deterministic");
+        return res;
     }
 }

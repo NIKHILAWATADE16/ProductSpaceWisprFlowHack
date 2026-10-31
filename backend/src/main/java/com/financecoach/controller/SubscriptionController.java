@@ -1,5 +1,6 @@
 package com.financecoach.controller;
 
+import com.financecoach.dto.DetectedSubscriptionDto;
 import com.financecoach.dto.SubscriptionDto;
 import com.financecoach.dto.SubscriptionRequest;
 import com.financecoach.security.UserPrincipal;
@@ -8,13 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -49,5 +44,27 @@ public class SubscriptionController {
     public ResponseEntity<SubscriptionDto> dismiss(@AuthenticationPrincipal UserPrincipal principal,
                                                     @PathVariable Long id) {
         return ResponseEntity.ok(service.setActive(principal.getId(), id, false));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal UserPrincipal principal,
+                                       @PathVariable Long id) {
+        service.delete(principal.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/detected")
+    public ResponseEntity<List<DetectedSubscriptionDto>> getDetected(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(service.detectSubscriptions(principal.getId()));
+    }
+
+    @PostMapping("/detect")
+    public ResponseEntity<?> detectAndSync(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(defaultValue = "false") boolean autoSync) {
+        if (autoSync) {
+            return ResponseEntity.ok(service.autoSyncDetectedSubscriptions(principal.getId()));
+        }
+        return ResponseEntity.ok(service.detectSubscriptions(principal.getId()));
     }
 }
