@@ -6,9 +6,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 public class StatementImportHelper {
 
@@ -19,7 +21,11 @@ public class StatementImportHelper {
         DateTimeFormatter.ofPattern("MM/dd/yyyy"),
         DateTimeFormatter.ofPattern("d/M/yyyy"),
         DateTimeFormatter.ofPattern("d-M-yyyy"),
-        DateTimeFormatter.ofPattern("yyyy/MM/dd")
+        DateTimeFormatter.ofPattern("yyyy/MM/dd"),
+        new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("d MMM [uuuu][uu]").toFormatter(Locale.ENGLISH),
+        new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("dd MMM [uuuu][uu]").toFormatter(Locale.ENGLISH),
+        new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("d-MMM-[uuuu][uu]").toFormatter(Locale.ENGLISH),
+        new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("dd-MMM-[uuuu][uu]").toFormatter(Locale.ENGLISH)
     );
 
     public static LocalDate parseDate(String dateStr) {

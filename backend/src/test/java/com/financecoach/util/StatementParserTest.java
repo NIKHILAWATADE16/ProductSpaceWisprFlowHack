@@ -103,6 +103,82 @@ public class StatementParserTest {
     }
 
     @Test
+    public void testKotakMahindraMultiLineFormat() {
+        String kotakText = """
+            Account Statement
+            30 Sep 2026 - 30 Oct 2026
+            Yogini Santosh Gade
+            Savings Account Transactions
+            # Date Description Chq/Ref. No. Withdrawal (Dr.) Deposit (Cr.) Balance
+            - - Opening Balance - - - 2,212.95
+            1 30 Sep 2026 UPI/CMP PPI
+            Wallet/YESB/627313781268/weWVlvq7x
+            UPI-627312394276 200.00 2,012.95
+            2 30 Sep 2026 UPI/COMPASS INDIA
+            /UTIB/627354125082/151f
+            UPI-627332966059 80.00 1,932.95
+            4 30 Sep 2026 Int.Pd:3648704286:01-07-2026 to 30-09-2026 97.00 2,019.95
+            6 01 Oct 2026 NACH-APB-CR-CREDIT THROUGH PFMS
+            NACHCR011026002847 1,809.00 3,798.95
+            13 02 Oct 2026 NEFT IN22627532707614 RANGAM INFOTECH
+            PVT LTD BRA
+            NEFTINW-1734927899 31,744.00 34,812.95
+            14 03 Oct 2026 UPI/Taco Bell Ober/YESB/615262161084/Sent using P
+            UPI-627674641429 114.00 34,698.95
+            15 04 Oct 2026 MB:SENT TO ATHARV SHANMUKH DHUP MB-998312992146 430.00 34,268.95
+            36 11 Oct 2026 REV-UPI/Maharashtra
+            S/217799683128/COMPLAIN
+            UPI-628461288204 375.00 32,143.95
+            Statement Generated on 30 Oct 2026, 21:16 Page 1 of 6
+            """;
+
+        List<ParsedStatementRow> rows = PdfStatementParser.parseText(kotakText);
+        Assertions.assertEquals(8, rows.size());
+
+        // Row 1: 200.00 Expense (withdrawal)
+        ParsedStatementRow r1 = rows.get(0);
+        Assertions.assertEquals(LocalDate.of(2026, 9, 30), r1.getDate());
+        Assertions.assertEquals(new BigDecimal("200.00"), r1.getAmount());
+        Assertions.assertEquals(TransactionType.EXPENSE, r1.getType());
+        Assertions.assertEquals("CMP PPI Wallet", r1.getMerchant());
+
+        // Row 3 (Interest): 97.00 Income (deposit)
+        ParsedStatementRow rInterest = rows.get(2);
+        Assertions.assertEquals(new BigDecimal("97.00"), rInterest.getAmount());
+        Assertions.assertEquals(TransactionType.INCOME, rInterest.getType());
+        Assertions.assertEquals("Interest Paid", rInterest.getMerchant());
+
+        // Row 4 (PFMS Credit): 1809.00 Income
+        ParsedStatementRow rPfms = rows.get(3);
+        Assertions.assertEquals(new BigDecimal("1809.00"), rPfms.getAmount());
+        Assertions.assertEquals(TransactionType.INCOME, rPfms.getType());
+
+        // Row 5 (NEFT Salary): 31744.00 Income
+        ParsedStatementRow rNeft = rows.get(4);
+        Assertions.assertEquals(LocalDate.of(2026, 10, 2), rNeft.getDate());
+        Assertions.assertEquals(new BigDecimal("31744.00"), rNeft.getAmount());
+        Assertions.assertEquals(TransactionType.INCOME, rNeft.getType());
+        Assertions.assertTrue(rNeft.getMerchant().contains("RANGAM INFOTECH"));
+
+        // Row 6 (Taco Bell): 114.00 Expense
+        ParsedStatementRow rTaco = rows.get(5);
+        Assertions.assertEquals(new BigDecimal("114.00"), rTaco.getAmount());
+        Assertions.assertEquals(TransactionType.EXPENSE, rTaco.getType());
+        Assertions.assertEquals("Taco Bell Ober", rTaco.getMerchant());
+
+        // Row 7 (MB Sent): 430.00 Expense
+        ParsedStatementRow rMb = rows.get(6);
+        Assertions.assertEquals(new BigDecimal("430.00"), rMb.getAmount());
+        Assertions.assertEquals(TransactionType.EXPENSE, rMb.getType());
+        Assertions.assertEquals("ATHARV SHANMUKH DHUP", rMb.getMerchant());
+
+        // Row 8 (Reversal / Refund): 375.00 Income
+        ParsedStatementRow rRev = rows.get(7);
+        Assertions.assertEquals(new BigDecimal("375.00"), rRev.getAmount());
+        Assertions.assertEquals(TransactionType.INCOME, rRev.getType());
+    }
+
+    @Test
     public void testPdfEmptyOrCorruptedRejection() {
         InputStream emptyIn = new ByteArrayInputStream(new byte[0]);
         Assertions.assertThrows(BadRequestException.class, () -> PdfStatementParser.parse(emptyIn));
