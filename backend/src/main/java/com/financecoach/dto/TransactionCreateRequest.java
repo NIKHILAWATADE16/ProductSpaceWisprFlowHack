@@ -110,3 +110,4 @@ public class TransactionCreateRequest {
         this.recurring = recurring;
     }
 }
+

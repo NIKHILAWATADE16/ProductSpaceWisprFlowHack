@@ -59,3 +59,4 @@ public class TransactionImportResult {
         this.transactions = transactions;
     }
 }
+

@@ -112,3 +112,4 @@ public class CategorizationService {
         return STANDARD_CATEGORIES;
     }
 }
+

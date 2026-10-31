@@ -108,3 +108,4 @@ public class TransactionUpdateRequest {
         this.saveAsRule = saveAsRule;
     }
 }
+

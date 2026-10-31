@@ -74,3 +74,4 @@ public class ParsedStatementRow {
         this.paymentMethod = paymentMethod;
     }
 }
+

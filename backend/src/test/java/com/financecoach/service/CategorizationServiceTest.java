@@ -75,3 +75,4 @@ class CategorizationServiceTest {
         assertTrue(saved.isUserOverride());
     }
 }
+

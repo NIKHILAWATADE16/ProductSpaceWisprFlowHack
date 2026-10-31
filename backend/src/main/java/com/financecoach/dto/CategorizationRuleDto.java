@@ -71,3 +71,4 @@ public class CategorizationRuleDto {
         this.createdAt = createdAt;
     }
 }
+
