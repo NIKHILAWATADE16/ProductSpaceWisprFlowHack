@@ -1,20 +1,14 @@
-import React from 'react';
-import { Repeat } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { CalendarClock, CheckCircle2, CircleDollarSign, PauseCircle, Repeat, Search, Sparkles } from 'lucide-react';
+import axiosClient from '../api/axiosClient';
+import PageHeader from '../components/common/PageHeader';
+import MetricCard from '../components/common/MetricCard';
+import { Card, EmptyState, ErrorState, LoadingState } from '../components/common/UiStates';
+import { formatCurrency, formatDate, getErrorMessage } from '../lib/formatters';
 
 export default function SubscriptionsPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <Repeat className="w-6 h-6 text-blue-400" />
-          Recurring Payments & Subscriptions
-        </h1>
-        <p className="text-slate-400 text-sm mt-1">Automatic recurring transaction detection, renewal schedules, and active subs.</p>
-      </div>
-      <div className="p-6 rounded-xl bg-surface-card border border-surface-border text-slate-300">
-        Subscriptions module initialized.
-      </div>
-    </div>
-  );
+  const [subscriptions, setSubscriptions] = useState([]); const [status, setStatus] = useState('loading'); const [error, setError] = useState(''); const [query, setQuery] = useState('');
+  const load = useCallback(() => { setStatus('loading'); axiosClient.get('/subscriptions').then(({ data }) => { setSubscriptions(Array.isArray(data) ? data : data?.content || []); setStatus('ready'); }).catch((err) => { setError(getErrorMessage(err, 'Subscriptions are not available yet.')); setStatus('error'); }); }, []); useEffect(() => { load(); }, [load]);
+  const filtered = subscriptions.filter((item) => `${item.name || ''} ${item.category || ''}`.toLowerCase().includes(query.toLowerCase())); const active = subscriptions.filter((item) => item.active !== false); const monthly = active.reduce((sum, item) => { const amount = Number(item.amount || 0); const frequency = item.billingFrequency || 'MONTHLY'; return sum + (frequency === 'YEARLY' ? amount / 12 : frequency === 'QUARTERLY' ? amount / 3 : frequency === 'WEEKLY' ? amount * 4.33 : amount); }, 0);
+  return <div className="space-y-7"><PageHeader icon={Repeat} eyebrow="Recurring payments" title="Subscriptions" description="See the payments that repeat, what they cost monthly, and what is coming next." /><div className="grid gap-4 sm:grid-cols-3"><MetricCard icon={Repeat} label="Active subscriptions" value={active.length} helper="Detected or confirmed" tone="blue" /><MetricCard icon={CircleDollarSign} label="Estimated monthly cost" value={formatCurrency(monthly)} helper="Normalized frequency" tone="amber" /><MetricCard icon={CalendarClock} label="Next payment" value={active.length ? formatDate(active.sort((a, b) => new Date(a.nextPaymentDate) - new Date(b.nextPaymentDate))[0]?.nextPaymentDate, { year: undefined }) : '—'} helper="Upcoming renewal" tone="emerald" /></div>{error && <ErrorState message={error} onRetry={load} />}{status === 'loading' ? <LoadingState label="Looking for recurring payments…" /> : status === 'ready' && !subscriptions.length ? <EmptyState icon={Repeat} title="No recurring payments yet" description="Once transactions are connected, repeated merchants and similar amounts can be surfaced here for review." action={<a href="/transactions" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white">Review transactions</a>} /> : <Card className="overflow-hidden"><div className="flex flex-col justify-between gap-3 border-b border-surface-border p-5 sm:flex-row sm:items-center"><div><h2 className="font-semibold text-white">Recurring payment register</h2><p className="mt-1 text-sm text-slate-500">Confirm what should stay in your monthly picture.</p></div><label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-600" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full rounded-xl border border-surface-border bg-slate-900/60 py-2.5 pl-10 pr-3 text-sm text-slate-200 outline-none focus:border-blue-500 sm:w-64" placeholder="Search subscriptions" /></label></div><div className="divide-y divide-surface-border">{filtered.map((item) => <div key={item.id || item.name} className="flex flex-col gap-4 p-5 transition hover:bg-slate-800/25 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.active === false ? 'bg-slate-800 text-slate-500' : 'bg-blue-500/10 text-blue-400'}`}>{item.active === false ? <PauseCircle className="h-5 w-5" /> : <Repeat className="h-5 w-5" />}</span><div><p className="font-medium text-slate-200">{item.name}</p><p className="mt-1 text-xs text-slate-500">{item.category || 'Other'} · {item.billingFrequency || 'MONTHLY'}</p></div></div><div className="flex items-center gap-8 sm:text-right"><div><p className="font-mono-numbers font-semibold text-slate-200">{formatCurrency(item.amount)}</p><p className="mt-1 text-xs text-slate-500">Next {formatDate(item.nextPaymentDate)}</p></div><span className={`hidden items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold sm:inline-flex ${item.active === false ? 'bg-slate-800 text-slate-500' : 'bg-emerald-500/10 text-emerald-400'}`}>{item.active === false ? <PauseCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}{item.active === false ? 'Inactive' : 'Active'}</span></div></div>)}{!filtered.length && <div className="p-10 text-center text-sm text-slate-500">No subscriptions match your search.</div>}</div></Card>}<Card className="flex items-start gap-4 p-5"><Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-blue-400" /><p className="text-sm leading-6 text-slate-400"><span className="font-semibold text-slate-200">Detection stays reviewable.</span> The app can suggest recurring payments from merchant, amount, and timing patterns, but it will not cancel anything or modify your bank account.</p></Card></div>;
 }
-

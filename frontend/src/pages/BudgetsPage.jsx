@@ -1,20 +1,20 @@
-import React from 'react';
-import { PieChart } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, PieChart, Plus, WalletCards } from 'lucide-react';
+import axiosClient from '../api/axiosClient';
+import PageHeader from '../components/common/PageHeader';
+import MetricCard, { ProgressBar } from '../components/common/MetricCard';
+import { Button, Card, EmptyState, ErrorState, LoadingState } from '../components/common/UiStates';
+import Modal from '../components/common/Modal';
+import FormField, { inputClass } from '../components/common/FormField';
+import Toast from '../components/common/Toast';
+import { formatCurrency, getErrorMessage, clamp } from '../lib/formatters';
 
+const categories = ['Food & Dining', 'Housing', 'Transport', 'Shopping', 'Entertainment', 'Utilities', 'Healthcare', 'Other'];
 export default function BudgetsPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <PieChart className="w-6 h-6 text-blue-400" />
-          Budget Tracking
-        </h1>
-        <p className="text-slate-400 text-sm mt-1">Category-wise monthly caps, burn rate analysis, and overrun warnings.</p>
-      </div>
-      <div className="p-6 rounded-xl bg-surface-card border border-surface-border text-slate-300">
-        Budgets module initialized.
-      </div>
-    </div>
-  );
+  const now = new Date(); const [budgets, setBudgets] = useState([]); const [status, setStatus] = useState('loading'); const [error, setError] = useState(''); const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false); const [toast, setToast] = useState(''); const [form, setForm] = useState({ category: 'Food & Dining', monthlyLimit: '', month: now.getMonth() + 1, year: now.getFullYear() });
+  const load = useCallback(() => { setStatus('loading'); axiosClient.get('/budgets', { params: { month: now.getMonth() + 1, year: now.getFullYear() } }).then(({ data }) => { setBudgets(Array.isArray(data) ? data : data?.content || []); setStatus('ready'); }).catch((err) => { setError(getErrorMessage(err, 'Budgets are not available yet.')); setStatus('error'); }); }, []);
+  useEffect(() => { load(); }, [load]);
+  const save = async (event) => { event.preventDefault(); setSaving(true); try { await axiosClient.post('/budgets', { ...form, monthlyLimit: Number(form.monthlyLimit) }); setOpen(false); setToast('Budget created'); load(); } catch (err) { setError(getErrorMessage(err, 'Could not save this budget.')); } finally { setSaving(false); } };
+  const totalLimit = budgets.reduce((sum, budget) => sum + Number(budget.monthlyLimit || 0), 0); const totalSpent = budgets.reduce((sum, budget) => sum + Number(budget.amountSpent ?? budget.spent ?? 0), 0);
+  return <div className="space-y-7"><PageHeader icon={PieChart} eyebrow="Plan your spending" title="Budgets" description="Give every important category a limit, then use actual spending to stay intentional." action={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add budget</Button>} />{error && <ErrorState message={error} onRetry={load} />}<div className="grid gap-4 sm:grid-cols-3"><MetricCard icon={WalletCards} label="Planned limits" value={formatCurrency(totalLimit)} helper="This month" tone="blue" /><MetricCard icon={PieChart} label="Tracked spending" value={formatCurrency(totalSpent)} helper="Across budgets" tone="amber" /><MetricCard icon={CheckCircle2} label="Remaining" value={formatCurrency(totalLimit - totalSpent)} helper="Budget capacity" tone="emerald" /></div>{status === 'loading' ? <LoadingState label="Loading budgets…" /> : status === 'ready' && budgets.length === 0 ? <EmptyState icon={PieChart} title="No budgets set up" description="Start with the categories where a monthly limit would make decisions easier." action={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Create first budget</Button>} /> : <div className="grid gap-4 md:grid-cols-2">{budgets.map((budget) => { const spent = Number(budget.amountSpent ?? budget.spent ?? 0); const limit = Number(budget.monthlyLimit || 0); const percentage = limit ? spent / limit * 100 : 0; const exceeded = percentage > 100; return <Card key={budget.id || `${budget.category}-${budget.month}`} className="p-5"><div className="flex items-start justify-between"><div><h3 className="font-semibold text-white">{budget.category}</h3><p className="mt-1 text-xs text-slate-500">{formatCurrency(spent)} of {formatCurrency(limit)}</p></div><span className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold ${exceeded ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{exceeded ? <AlertTriangle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}{exceeded ? 'Over limit' : 'On track'}</span></div><div className="mt-5"><ProgressBar value={clamp(percentage)} tone={exceeded ? 'rose' : percentage > 80 ? 'amber' : 'blue'} /></div><div className="mt-3 flex justify-between text-xs text-slate-500"><span>{percentage.toFixed(0)}% used</span><span className={exceeded ? 'text-rose-400' : 'text-slate-400'}>{exceeded ? `${formatCurrency(spent - limit)} over` : `${formatCurrency(limit - spent)} remaining`}</span></div></Card>; })}</div>}<Modal open={open} onClose={() => setOpen(false)} title="Create a budget" description="Budgets are tracked against expense transactions in the selected period."><form onSubmit={save} className="space-y-5"><FormField label="Category"><select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className={inputClass}>{categories.map((item) => <option key={item}>{item}</option>)}</select></FormField><FormField label="Monthly limit"><input required min="1" step="0.01" type="number" value={form.monthlyLimit} onChange={(event) => setForm({ ...form, monthlyLimit: event.target.value })} className={inputClass} placeholder="0" /></FormField><div className="flex justify-end gap-2"><Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button disabled={saving}>{saving ? 'Saving…' : 'Create budget'}</Button></div></form></Modal><Toast message={toast} onClose={() => setToast('')} /></div>;
 }
-

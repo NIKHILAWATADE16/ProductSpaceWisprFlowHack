@@ -1,20 +1,27 @@
-import React from 'react';
-import { UserCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Check, CircleDollarSign, Landmark, PiggyBank, Save, ShieldCheck, UserCheck } from 'lucide-react';
+import axiosClient from '../api/axiosClient';
+import PageHeader from '../components/common/PageHeader';
+import { Button, Card, ErrorState, LoadingState } from '../components/common/UiStates';
+import FormField, { inputClass } from '../components/common/FormField';
+import Toast from '../components/common/Toast';
+import { getErrorMessage, formatCurrency } from '../lib/formatters';
+
+const fields = [
+  { key: 'monthlyIncome', label: 'Monthly income', hint: 'Take-home income you can rely on', icon: CircleDollarSign },
+  { key: 'monthlyFixedExpenses', label: 'Fixed monthly expenses', hint: 'Rent, bills, loan payments, and essentials', icon: Landmark },
+  { key: 'currentSavings', label: 'Current savings', hint: 'Cash already set aside', icon: PiggyBank },
+  { key: 'emergencyFund', label: 'Emergency fund', hint: 'Your safety buffer target or balance', icon: ShieldCheck },
+  { key: 'savingsTarget', label: 'Monthly savings target', hint: 'What you want to save each month', icon: Save },
+];
 
 export default function ProfilePage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <UserCheck className="w-6 h-6 text-blue-400" />
-          Financial Profile & Living Money Model
-        </h1>
-        <p className="text-slate-400 text-sm mt-1">Configure baseline income, fixed expenses, emergency fund, and savings targets.</p>
-      </div>
-      <div className="p-6 rounded-xl bg-surface-card border border-surface-border text-slate-300">
-        Financial Profile module initialized.
-      </div>
-    </div>
-  );
+  const [form, setForm] = useState({ monthlyIncome: '', monthlyFixedExpenses: '', currentSavings: '', emergencyFund: '', savingsTarget: '' });
+  const [status, setStatus] = useState('loading'); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [toast, setToast] = useState('');
+  const load = () => { setStatus('loading'); axiosClient.get('/profile').then(({ data }) => { setForm({ monthlyIncome: data.monthlyIncome ?? '', monthlyFixedExpenses: data.monthlyFixedExpenses ?? '', currentSavings: data.currentSavings ?? '', emergencyFund: data.emergencyFund ?? '', savingsTarget: data.savingsTarget ?? '' }); setStatus('ready'); }).catch((err) => { setError(getErrorMessage(err, 'We could not load your financial profile.')); setStatus('error'); }); };
+  useEffect(() => { load(); }, []);
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const save = async (event) => { event.preventDefault(); setSaving(true); setError(''); try { const { data } = await axiosClient.put('/profile', Object.fromEntries(Object.entries(form).map(([key, value]) => [key, value === '' ? 0 : Number(value)]))); setForm({ monthlyIncome: data.monthlyIncome ?? '', monthlyFixedExpenses: data.monthlyFixedExpenses ?? '', currentSavings: data.currentSavings ?? '', emergencyFund: data.emergencyFund ?? '', savingsTarget: data.savingsTarget ?? '' }); setToast('Financial profile updated'); } catch (err) { setError(getErrorMessage(err, 'We could not save your profile.')); } finally { setSaving(false); } };
+  const monthlySurplus = Number(form.monthlyIncome || 0) - Number(form.monthlyFixedExpenses || 0);
+  return <div className="space-y-7"><PageHeader icon={UserCheck} eyebrow="Living money model" title="Financial profile" description="Set the baseline your coach uses to understand cash flow, buffers, and savings capacity." />{status === 'loading' && <LoadingState label="Loading your profile…" />}{status === 'error' && <ErrorState message={error} onRetry={load} />}{status === 'ready' && <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]"><Card className="p-5 sm:p-7"><div className="mb-7 flex items-start justify-between gap-4"><div><h2 className="font-semibold text-white">Your baseline</h2><p className="mt-1 text-sm leading-6 text-slate-500">Use monthly values and whole amounts. You can refine them anytime.</p></div><span className="hidden items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-400 sm:flex"><Check className="h-3.5 w-3.5" />Private workspace</span></div><form onSubmit={save} className="grid gap-5 sm:grid-cols-2">{fields.map(({ key, label, hint, icon: Icon }) => <FormField key={key} label={label} className={key === 'savingsTarget' ? 'sm:col-span-2' : ''}><div className="relative"><Icon className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-600" /><input required min="0" step="0.01" type="number" value={form[key]} onChange={(event) => update(key, event.target.value)} className={`${inputClass} pl-10`} placeholder="0" /></div><span className="mt-1.5 block text-xs text-slate-600">{hint}</span></FormField>)}{error && <p className="sm:col-span-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">{error}</p>}<div className="flex justify-end sm:col-span-2"><Button disabled={saving}>{saving ? 'Saving…' : <><Save className="h-4 w-4" />Save profile</>}</Button></div></form></Card><div className="space-y-6"><Card className="p-6"><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Live estimate</p><p className="mt-3 text-sm text-slate-400">Monthly room after fixed expenses</p><p className={`mt-2 font-mono-numbers text-3xl font-semibold ${monthlySurplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatCurrency(monthlySurplus)}</p><p className="mt-3 text-xs leading-5 text-slate-500">This is a simple baseline, not a forecast. Variable spending and actual transactions will make it more precise.</p></Card><Card className="p-6"><div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400"><ShieldCheck className="h-5 w-5" /></div><h3 className="font-semibold text-white">Coach safety by design</h3><p className="mt-2 text-sm leading-6 text-slate-500">The coach works from financial summaries. It does not need your password, bank credentials, or full statement text.</p></Card></div></div>}<Toast message={toast} onClose={() => setToast('')} /></div>;
 }
-

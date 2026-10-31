@@ -1,0 +1,15 @@
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Check, UserRound } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/common/UiStates';
+import FormField, { inputClass } from '../components/common/FormField';
+import { getErrorMessage } from '../lib/formatters';
+import { AuthShell } from './authShell';
+
+export default function RegisterPage() {
+  const navigate = useNavigate(); const { register } = useAuth();
+  const [form, setForm] = useState({ name: '', email: '', password: '' }); const [error, setError] = useState(''); const [submitting, setSubmitting] = useState(false);
+  const submit = async (event) => { event.preventDefault(); setError(''); setSubmitting(true); try { await register(form); navigate('/', { replace: true }); } catch (err) { setError(getErrorMessage(err, 'We could not create your workspace.')); } finally { setSubmitting(false); } };
+  return <AuthShell><div className="mb-8"><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-300"><UserRound className="h-5 w-5" /></div><h1 className="text-2xl font-bold text-white">Create your workspace</h1><p className="mt-2 text-sm leading-6 text-slate-400">Start with a clear baseline. You can add transactions and goals when you are ready.</p></div><form onSubmit={submit} className="space-y-5"><FormField label="Your name"><input required minLength="2" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} placeholder="Alex Morgan" /></FormField><FormField label="Email"><input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className={inputClass} placeholder="you@example.com" /></FormField><FormField label="Password"><input required minLength="6" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className={inputClass} placeholder="At least 6 characters" /></FormField>{error && <p className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-300">{error}</p>}<Button className="w-full" disabled={submitting}>{submitting ? 'Creating workspace…' : <>Create workspace <ArrowRight className="h-4 w-4" /></>}</Button></form><div className="mt-6 space-y-2 text-xs text-slate-500"><p className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-emerald-400" />No investment recommendations</p><p className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-emerald-400" />Calculations grounded in your data</p></div><p className="mt-7 text-center text-sm text-slate-500">Already have a workspace? <Link to="/login" className="font-semibold text-blue-400 hover:text-blue-300">Sign in</Link></p></AuthShell>;
+}

@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import { AuthProvider } from './context/AuthContext';
 import DashboardPage from './pages/DashboardPage';
 import TransactionsPage from './pages/TransactionsPage';
 import BudgetsPage from './pages/BudgetsPage';
@@ -9,28 +11,24 @@ import SubscriptionsPage from './pages/SubscriptionsPage';
 import CoachPage from './pages/CoachPage';
 import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import axiosClient from './api/axiosClient';
 
-export default function App() {
+function AppRoutes() {
   const [backendConnected, setBackendConnected] = useState(false);
 
   useEffect(() => {
-    const checkBackend = async () => {
-      try {
-        const response = await axiosClient.get('/health');
-        if (response.data && response.data.status === 'UP') {
-          setBackendConnected(true);
-        }
-      } catch (err) {
-        setBackendConnected(false);
-      }
-    };
-    checkBackend();
+    axiosClient.get('/health')
+      .then(({ data }) => setBackendConnected(data?.status === 'UP'))
+      .catch(() => setBackendConnected(false));
   }, []);
 
-  return (
-    <MainLayout backendConnected={backendConnected}>
-      <Routes>
+  return <Routes>
+    <Route path="/login" element={<LoginPage />} />
+    <Route path="/register" element={<RegisterPage />} />
+    <Route element={<ProtectedRoute />}>
+      <Route element={<MainLayout backendConnected={backendConnected} />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/budgets" element={<BudgetsPage />} />
@@ -39,8 +37,12 @@ export default function App() {
         <Route path="/coach" element={<CoachPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-      </Routes>
-    </MainLayout>
-  );
+      </Route>
+    </Route>
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>;
 }
 
+export default function App() {
+  return <AuthProvider><AppRoutes /></AuthProvider>;
+}
