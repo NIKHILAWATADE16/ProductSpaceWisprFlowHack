@@ -23,8 +23,11 @@ axiosClient.interceptors.request.use(
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Optional: redirect to login or clear token if expired
+    if (error.response?.status === 401 && !['/auth/login', '/auth/register'].some((path) => error.config?.url?.includes(path))) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('financeflow_user');
+      window.dispatchEvent(new Event('financeflow:session-expired'));
+      if (window.location.pathname !== '/login') window.location.assign('/login');
     }
     return Promise.reject(error);
   }

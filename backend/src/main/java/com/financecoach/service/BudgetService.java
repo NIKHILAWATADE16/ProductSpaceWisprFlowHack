@@ -36,12 +36,14 @@ public class BudgetService {
         LocalDate now = LocalDate.now();
         int m = month == null ? now.getMonthValue() : month;
         int y = year == null ? now.getYear() : year;
+        validatePeriod(m, y);
         return repo.findByUserIdAndMonthAndYear(uid, m, y).stream().map(this::dto).toList();
     }
 
     @Transactional
     public BudgetDto create(Long uid, BudgetRequest request) {
         User user = users.findById(uid).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        validatePeriod(request.getMonth(), request.getYear());
         ensureUnique(uid, request, null);
         return dto(repo.save(new Budget(user, request.getCategory(), request.getMonthlyLimit(), request.getMonth(), request.getYear())));
     }
@@ -49,6 +51,7 @@ public class BudgetService {
     @Transactional
     public BudgetDto update(Long uid, Long id, BudgetRequest request) {
         Budget budget = owned(uid, id);
+        validatePeriod(request.getMonth(), request.getYear());
         ensureUnique(uid, request, id);
         budget.setCategory(request.getCategory());
         budget.setMonthlyLimit(request.getMonthlyLimit());
@@ -60,6 +63,12 @@ public class BudgetService {
     @Transactional
     public void delete(Long uid, Long id) {
         repo.delete(owned(uid, id));
+    }
+
+    private void validatePeriod(int month, int year) {
+        if (month < 1 || month > 12 || year < 2000 || year > 9999) {
+            throw new com.financecoach.exception.BadRequestException("Month or year is invalid");
+        }
     }
 
     private void ensureUnique(Long uid, BudgetRequest request, Long ignoredId) {

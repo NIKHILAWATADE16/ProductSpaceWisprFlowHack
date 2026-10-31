@@ -1,15 +1,16 @@
 package com.financecoach.dto;
 
-import jakarta.validation.constraints.Email;
+import com.financecoach.validation.ValidEmail;
 import jakarta.validation.constraints.NotBlank;
 
 public class LoginRequest {
 
     @NotBlank(message = "Email is required")
-    @Email(message = "Email must be valid")
+    @ValidEmail
     private String email;
 
     @NotBlank(message = "Password is required")
+    @jakarta.validation.constraints.Size(max = 100, message = "Password cannot exceed 100 characters")
     private String password;
 
     public LoginRequest() {

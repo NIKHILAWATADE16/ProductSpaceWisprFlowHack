@@ -43,6 +43,7 @@ public class DashboardService {
         LocalDate endDate;
 
         if (month != null && year != null) {
+            validatePeriod(month, year);
             startDate = LocalDate.of(year, month, 1);
             endDate = startDate.with(TemporalAdjusters.lastDayOfMonth());
         } else {
@@ -103,6 +104,12 @@ public class DashboardService {
         return summary;
     }
 
+    private void validatePeriod(int month, int year) {
+        if (month < 1 || month > 12 || year < 2000 || year > 9999) {
+            throw new com.financecoach.exception.BadRequestException("Month or year is invalid");
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<CategorySpendingDto> getCategorySpending(Long userId, LocalDate startDate, LocalDate endDate, BigDecimal totalExpenses) {
         List<Object[]> rows = transactionRepository.findCategorySpendingSummary(
@@ -134,6 +141,7 @@ public class DashboardService {
         LocalDate now = LocalDate.now();
         int targetYear = year != null ? year : now.getYear();
         int targetMonth = month != null ? month : now.getMonthValue();
+        validatePeriod(targetMonth, targetYear);
 
         LocalDate startDate = LocalDate.of(targetYear, targetMonth, 1);
         LocalDate endDate = startDate.with(TemporalAdjusters.lastDayOfMonth());

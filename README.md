@@ -14,7 +14,7 @@ The project is designed as a full-stack software development submission demonstr
 - AI-assisted financial coaching with a deterministic fallback
 - Responsive data visualization and error handling
 
-> **Implementation status:** Full-stack MVP complete and verified across all phases. Implemented features include JWT authentication, living financial profile, real-time dashboard calculations, CSV & PDF statement parsing with SHA-256 deduplication, 30-merchant categorization with user-rule learning, budget tracking, goal progress formulas, what-if simulations, automated recurring subscription detection, AI Financial Coach powered by Google Gemini 3.5 with context grounding and deterministic fallback, automated demo data seeding (`demo@financecoach.com` / `Password123!`), and 28 automated unit tests (100% passing).
+> **Implementation status:** The frontend experience and backend MVP contracts are implemented for authentication, strict email validation, profile, dashboard, transaction CRUD, CSV/PDF statement parsing, duplicate prevention, automatic categorization, learned user categorization rules, budget and goal CRUD, subscription creation and confirmation/dismissal, monthly reports, coach fallback responses, and what-if simulations. All visible monetary values use the shared Indian-rupee formatter. Automatic recurring-payment detection, optional LLM integration, frontend build verification, and broader integration-test coverage remain follow-up work. The gap analysis below distinguishes verified functionality from planned hardening so the project does not claim functionality that is not yet present.
 
 ---
 
@@ -69,14 +69,11 @@ The AI coach must explain calculated application data rather than inventing fina
 
 ### Supporting technologies and status
 
-- Apache Commons CSV for CSV bank statement imports — implemented & tested
-- Apache PDFBox 3.x for PDF bank statement imports — implemented & tested
-- Google Gemini 3.5 AI Financial Coach with grounding & safety guardrails — implemented & live
-- Deterministic coach fallback (for offline or rate-limited scenarios) — implemented & tested
-- Recurring subscription detection engine (frequency & ±5% variance analysis) — implemented & tested
-- Demo Data Seeder (preloads 3 months of realistic transactions) — implemented & verified
-- Docker Compose for local PostgreSQL — configured
-- Automated unit test suite (28 test cases, 100% passing) — verified
+- Apache Commons CSV for CSV bank statement imports — implemented
+- Apache PDFBox dependency is present, but PDF transaction parsing is not implemented yet
+- Deterministic coach fallback — implemented; configurable Claude/LLM provider — planned
+- Docker Compose for local PostgreSQL — configured, runtime verification requires Docker Desktop
+- A migration tool such as Flyway for production-safe schema changes — planned
 
 ---
 
@@ -201,15 +198,16 @@ sequenceDiagram
 ```text
 1. User creates or imports transactions.
 2. Backend validates ownership, amount, type, date, and category.
-3. CSV rows are parsed, normalized, hashed, and deduplicated per user.
-4. Imported rows use their supplied category or the safe `Other` default.
-5. Transaction records remain persistent in PostgreSQL.
-6. Dashboard/report services aggregate only the authenticated user's records.
-7. Budget, goal, subscription, and simulation services derive their calculations.
-8. Frontend renders cards, tables, charts, and loading/error/empty states.
+3. CSV and supported text-based PDF rows are parsed and validated.
+4. Import hashes prevent duplicate rows per user.
+5. Generic and learned user-specific categorization rules assign categories.
+6. Transaction records remain persistent in PostgreSQL.
+7. Dashboard/report services aggregate only the authenticated user's records.
+8. Budget, goal, subscription, and simulation services derive their calculations.
+9. Frontend renders cards, tables, charts, import summaries, and loading/error/empty states.
 ```
 
-> User-specific categorization correction rules and text-PDF parsing are designed follow-ups, not currently verified workflows.
+> Scanned or password-protected PDFs and unsupported bank layouts return explicit validation errors. Automatic recurring-payment detection remains a follow-up workflow.
 
 ### 4.4 Coach workflow
 
@@ -251,11 +249,11 @@ The current JPA model contains the main entities required by the problem stateme
 |---|---|---|
 | `User` | Account identity and ownership boundary | Implemented |
 | `FinancialProfile` | Monthly income, savings, emergency fund, fixed expenses, savings target | Implemented |
-| `Transaction` | Income and expense records with category and import hash | Entity, CRUD API, filters, and CSV import implemented |
+| `Transaction` | Income and expense records with category and import hash | Entity, CRUD API, filters, CSV/PDF import, and duplicate prevention implemented |
 | `FinancialGoal` | Target amount, current amount, target date, priority, status | Entity, CRUD API, and monthly-savings calculation implemented |
 | `Budget` | Category limit for month/year | Entity, create/list/update/delete API, and spending calculation implemented |
 | `Subscription` | Recurring payment details and active state | Entity, list/create, confirm, and dismiss API implemented |
-| `CategorizationRule` | Generic and user-specific merchant/category rules | Entity/repository present; correction workflow not implemented |
+| `CategorizationRule` | Generic and user-specific merchant/category rules | Entity, repository, automatic categorization, and learned correction workflow implemented |
 
 Important persistence rules:
 
@@ -308,19 +306,34 @@ Important persistence rules:
 | `POST` | `/api/coach/chat` | AI Coach chat (Google Gemini 3.5 with context grounding) |
 | `POST` | `/api/coach/simulate` | Calculate a non-mutating what-if projection |
 | `GET` | `/api/reports/monthly` | Return monthly totals, categories, budgets, and comparisons |
-| `POST` | `/api/demo/seed` | Seed or reset demo data (3 months transactions, goals, budgets) |
-| `GET` | `/api/demo/info` | Demo credentials and overview (`demo@financecoach.com`) |
 
-### Demo Credentials for Evaluation
+### Frontend routes already implemented
 
-The application includes an automated seeder that preloads realistic transactions, budgets, goals, and recurring subscriptions:
+| Route | Page |
+|---|---|
+| `/login` | Login |
+| `/register` | Registration |
+| `/` | Dashboard |
+| `/transactions` | Transactions and imports |
+| `/budgets` | Budget tracking |
+| `/goals` | Financial goals |
+| `/subscriptions` | Recurring payments |
+| `/coach` | AI coach and what-if simulator |
+| `/reports` | Monthly reports |
+| `/profile` | Financial profile |
 
-- **Email:** `demo@financecoach.com`
-- **Password:** `Password123!`
-- **Data seeded:** 3 months of income, housing, groceries, dining, utilities, subscriptions, and shopping transactions, 3 active goals, 4 categorized budgets, and 4 recurring subscriptions.
-- **Seeding Endpoint:** `POST /api/demo/seed` resets or seeds demo data at any time.
+### Remaining API and product gaps
 
-The frontend uses real API calls and shows loading, empty, or backend-error states rather than fabricating records. Some frontend editing and confirmation controls still need to be wired to the newly available update and action endpoints.
+The following are not yet complete:
+
+```text
+POST   /api/transactions/import for PDF statements
+POST   /api/transactions/{id}/categorize or equivalent correction workflow
+GET    /api/subscriptions with automatically detected recurring payments
+POST   /api/coach/chat backed by an optional external LLM provider
+```
+
+The frontend uses real API calls and shows loading, empty, or backend-error states rather than fabricating records. The transaction page wires edit/delete actions, import summaries, dynamic categories, and learned-rule management. Budget and goal pages now support edit/delete flows, and the subscription page supports create plus confirm/dismiss actions.
 
 ---
 
@@ -351,16 +364,12 @@ The frontend uses real API calls and shows loading, empty, or backend-error stat
 
 - Pagination for larger transaction histories
 - Additional controller-level contract tests
-- Frontend edit/delete forms for transactions, budgets, and goals
-- Frontend subscription create and confirm/dismiss controls
 
 #### Transaction import and categorization
 
-- Text-based PDFBox statement extractor
-- Bank-format-specific parser validation and useful import errors
-- Automatic category assignment from `CategorizationRule` records
-- User correction endpoint and override precedence rules
-- Import summary showing created, skipped, and rejected rows
+- Import preview before persistence
+- Detailed row-level import errors and correction before saving
+- Additional bank-format-specific parser validation
 
 #### Recurring payments
 
@@ -395,19 +404,18 @@ The frontend uses real API calls and shows loading, empty, or backend-error stat
 
 ### Phase A — Complete frontend parity and backend hardening
 
-1. Wire frontend edit/delete actions to the implemented ownership-scoped APIs.
-2. Add subscription create and confirm/dismiss controls.
+1. **Completed:** Budget and goal edit/delete flows are wired to the ownership-scoped APIs.
+2. **Completed:** Subscription creation and confirm/dismiss controls are wired to the backend.
 3. Add controller-level contract tests and consistent pagination.
 4. Return stable response shapes matching the existing frontend.
 5. Add API documentation for the verified endpoint surface.
 
 ### Phase B — Finish transaction intelligence
 
-1. Implement a conservative text-PDF parser for supported statement layouts.
-2. Add import preview before persistence.
-3. Add generic rules and user-specific override rules.
-4. Add correction endpoint and import result summary.
-5. Add row-level import validation and parser tests.
+1. Add import preview before persistence.
+2. Add detailed row-level import errors and correction before saving.
+3. Add additional bank-format-specific parser validation.
+4. Expand parser and categorization integration tests.
 
 ### Phase C — Implement calculations as testable services
 

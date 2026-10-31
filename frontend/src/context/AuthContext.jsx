@@ -16,10 +16,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(Boolean(localStorage.getItem('token')));
 
   useEffect(() => {
+    const handleExpiredSession = () => setUser(null);
+    window.addEventListener('financeflow:session-expired', handleExpiredSession);
     const token = localStorage.getItem('token');
     if (!token) {
       setLoading(false);
-      return;
+      return () => window.removeEventListener('financeflow:session-expired', handleExpiredSession);
     }
 
     axiosClient.get('/auth/me')
@@ -33,6 +35,8 @@ export function AuthProvider({ children }) {
         setUser(null);
       })
       .finally(() => setLoading(false));
+
+    return () => window.removeEventListener('financeflow:session-expired', handleExpiredSession);
   }, []);
 
   const value = useMemo(() => ({
