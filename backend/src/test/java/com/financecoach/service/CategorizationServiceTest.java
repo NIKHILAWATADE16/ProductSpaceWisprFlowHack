@@ -1,0 +1,77 @@
+package com.financecoach.service;
+
+import com.financecoach.entity.CategorizationRule;
+import com.financecoach.entity.User;
+import com.financecoach.repository.CategorizationRuleRepository;
+import com.financecoach.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class CategorizationServiceTest {
+
+    @Mock
+    private CategorizationRuleRepository ruleRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    private CategorizationService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new CategorizationService(ruleRepository, userRepository);
+    }
+
+    @Test
+    void testGenericCategorization() {
+        when(ruleRepository.findAllRulesForUser(1L)).thenReturn(List.of(
+            new CategorizationRule(null, "uber", "Transport", false),
+            new CategorizationRule(null, "netflix", "Entertainment", false),
+            new CategorizationRule(null, "swiggy", "Food & Dining", false)
+        ));
+
+        assertEquals("Transport", service.categorize(1L, "Uber trip to airport", "Uber"));
+        assertEquals("Entertainment", service.categorize(1L, "Monthly Netflix Premium", "Netflix"));
+        assertEquals("Food & Dining", service.categorize(1L, "SWIGGY-BANGALORE", "Swiggy"));
+        assertEquals("Other", service.categorize(1L, "Unknown corner store", "CornerStore"));
+    }
+
+    @Test
+    void testUserOverrideTakesPrecedence() {
+        // User created an override for swiggy -> "Office Expense"
+        CategorizationRule userOverride = new CategorizationRule(new User("Alex", "alex@test.com", "pass"), "swiggy", "Office Expense", true);
+        CategorizationRule genericRule = new CategorizationRule(null, "swiggy", "Food & Dining", false);
+
+        when(ruleRepository.findAllRulesForUser(1L)).thenReturn(List.of(userOverride, genericRule));
+
+        String category = service.categorize(1L, "Order Swiggy lunch", "Swiggy");
+        assertEquals("Office Expense", category);
+    }
+
+    @Test
+    void testLearnUserCorrection() {
+        User user = new User("Alex", "alex@test.com", "pass");
+        user.setId(1L);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(ruleRepository.findByUserIdAndKeyword(1L, "starbucks")).thenReturn(Optional.empty());
+        when(ruleRepository.save(any(CategorizationRule.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CategorizationRule saved = service.learnUserCorrection(1L, "Starbucks", "Meetings & Coffee");
+        assertNotNull(saved);
+        assertEquals("starbucks", saved.getKeyword());
+        assertEquals("Meetings & Coffee", saved.getCategory());
+        assertTrue(saved.isUserOverride());
+    }
+}
