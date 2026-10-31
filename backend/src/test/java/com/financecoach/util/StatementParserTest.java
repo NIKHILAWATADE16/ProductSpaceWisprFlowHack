@@ -1,6 +1,7 @@
 package com.financecoach.util;
 
 import com.financecoach.entity.TransactionType;
+import com.financecoach.exception.BadRequestException;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -18,10 +19,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class StatementParserTest {
+public class StatementParserTest {
 
     @Test
-    void testCsvStatementParsing() {
+    public void testCsvStatementParsing() {
         String csv = "Date,Description,Amount,Type\n" +
             "2026-10-15,Uber ride,450.00,EXPENSE\n" +
             "2026-10-16,Salary from Acme Corp,120000.00,INCOME\n" +
@@ -41,7 +42,23 @@ class StatementParserTest {
     }
 
     @Test
-    void testComputeImportHashConsistency() {
+    public void testCsvWithDebitCreditColumns() {
+        String csv = "Txn Date,Particulars,Debit,Credit\n" +
+            "15/10/2026,Grocery store,1200.00,\n" +
+            "16/10/2026,Client deposit,,45000.00\n";
+
+        InputStream in = new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+        List<ParsedStatementRow> rows = CsvStatementParser.parse(in);
+
+        assertEquals(2, rows.size());
+        assertEquals(new BigDecimal("1200.00"), rows.get(0).getAmount());
+        assertEquals(TransactionType.EXPENSE, rows.get(0).getType());
+        assertEquals(new BigDecimal("45000.00"), rows.get(1).getAmount());
+        assertEquals(TransactionType.INCOME, rows.get(1).getType());
+    }
+
+    @Test
+    public void testComputeImportHashConsistency() {
         LocalDate date = LocalDate.of(2026, 10, 15);
         BigDecimal amount = new BigDecimal("450.00");
         String desc = "Uber ride";
@@ -56,8 +73,8 @@ class StatementParserTest {
     }
 
     @Test
-    void testPdfStatementParsing() throws Exception {
-        // Generate a valid text-based bank statement in memory with PDFBox 3
+    public void testPdfStatementParsing() throws Exception {
+        // Generate an in-memory PDF statement using PDFBox 3
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (PDDocument doc = new PDDocument()) {
             PDPage page = new PDPage();
@@ -76,7 +93,6 @@ class StatementParserTest {
                 stream.endText();
             }
             doc.save(out);
-            doc.save(new java.io.File("/tmp/bank_statement.pdf"));
         }
 
         InputStream pdfIn = new ByteArrayInputStream(out.toByteArray());
@@ -86,5 +102,16 @@ class StatementParserTest {
         assertFalse(rows.isEmpty());
         assertTrue(rows.stream().anyMatch(r -> r.getAmount().compareTo(new BigDecimal("499.00")) == 0));
         assertTrue(rows.stream().anyMatch(r -> r.getType() == TransactionType.INCOME));
+    }
+
+    @Test
+    public void testPdfEmptyOrCorruptedRejection() {
+        // Empty stream must throw BadRequestException
+        InputStream emptyIn = new ByteArrayInputStream(new byte[0]);
+        assertThrows(BadRequestException.class, () -> PdfStatementParser.parse(emptyIn));
+
+        // Corrupted stream must throw BadRequestException
+        InputStream corruptIn = new ByteArrayInputStream("Not a PDF content".getBytes(StandardCharsets.UTF_8));
+        assertThrows(BadRequestException.class, () -> PdfStatementParser.parse(corruptIn));
     }
 }
