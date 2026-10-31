@@ -134,4 +134,54 @@ public class SubscriptionServiceTest {
         assertNotNull(updated);
         assertFalse(updated.isActive());
     }
+
+    @Test
+    void detectsPriceChangeAlertWhenAmountChanges() {
+        Subscription sub = new Subscription(testUser, "Netflix", new BigDecimal("10.99"),
+                BillingFrequency.MONTHLY, LocalDate.now().plusDays(10), "Entertainment", true);
+        sub.setId(1L);
+
+        Transaction recentTx = new Transaction(testUser, "Netflix Monthly", new BigDecimal("15.49"),
+                LocalDate.now().minusDays(5), TransactionType.EXPENSE, "Entertainment", "Netflix", "Card", false);
+
+        when(repo.findByUserIdAndActive(eq(1L), eq(true), any(Sort.class))).thenReturn(List.of(sub));
+        when(txRepo.findByUserIdAndTransactionDateBetween(eq(1L), any(LocalDate.class), any(LocalDate.class), any(Sort.class)))
+                .thenReturn(List.of(recentTx));
+
+        List<SubscriptionDto> list = service.list(1L, true);
+        assertEquals(1, list.size());
+        SubscriptionDto dto = list.get(0);
+        assertTrue(dto.isPriceChangeAlert());
+        assertEquals(new BigDecimal("10.99"), dto.getPreviousAmount());
+        assertEquals(new BigDecimal("15.49"), dto.getNewAmount());
+        assertNotNull(dto.getPriceChangeMessage());
+        assertTrue(dto.getPriceChangeMessage().contains("Price increased"));
+        assertFalse(dto.isUnusedAlert());
+    }
+
+    @Test
+    void detectsUnusedAlertWhenNoChargeFor45PlusDays() {
+        Subscription sub = new Subscription(testUser, "Spotify", new BigDecimal("9.99"),
+                BillingFrequency.MONTHLY, LocalDate.now().plusDays(10), "Entertainment", true);
+        sub.setId(2L);
+
+        Transaction oldTx = new Transaction(testUser, "Spotify Premium", new BigDecimal("9.99"),
+                LocalDate.now().minusDays(52), TransactionType.EXPENSE, "Entertainment", "Spotify", "Card", false);
+
+        when(repo.findByUserIdAndActive(eq(1L), eq(true), any(Sort.class))).thenReturn(List.of(sub));
+        when(txRepo.findByUserIdAndTransactionDateBetween(eq(1L), any(LocalDate.class), any(LocalDate.class), any(Sort.class)))
+                .thenReturn(List.of(oldTx));
+
+        List<SubscriptionDto> list = service.list(1L, true);
+        assertEquals(1, list.size());
+        SubscriptionDto dto = list.get(0);
+        assertFalse(dto.isPriceChangeAlert());
+        assertTrue(dto.isUnusedAlert());
+        assertEquals(52, dto.getDaysInactive());
+        assertNotNull(dto.getUnusedMessage());
+        assertTrue(dto.getUnusedMessage().contains("No charge detected"));
+
+        List<SubscriptionDto> alerts = service.getActiveAlerts(1L);
+        assertEquals(1, alerts.size());
+    }
 }

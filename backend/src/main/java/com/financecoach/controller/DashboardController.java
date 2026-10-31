@@ -2,6 +2,7 @@ package com.financecoach.controller;
 
 import com.financecoach.dto.CategorySpendingDto;
 import com.financecoach.dto.DashboardSummaryDto;
+import com.financecoach.dto.SpendingNudgeDto;
 import com.financecoach.security.UserPrincipal;
 import com.financecoach.service.DashboardService;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +39,16 @@ public class DashboardController {
     ) {
         List<CategorySpendingDto> spending = dashboardService.getCategorySpendingForMonth(principal.getId(), month, year);
         return ResponseEntity.ok(spending);
+    }
+
+    @GetMapping("/nudges")
+    public ResponseEntity<List<SpendingNudgeDto>> getNudges(
+        @AuthenticationPrincipal UserPrincipal principal,
+        @RequestParam(required = false) Integer month,
+        @RequestParam(required = false) Integer year
+    ) {
+        List<SpendingNudgeDto> nudges = dashboardService.getSpendingNudges(principal.getId(), month, year);
+        return ResponseEntity.ok(nudges);
     }
 }
 

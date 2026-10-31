@@ -1,6 +1,7 @@
 package com.financecoach.dto;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 public class DashboardSummaryDto {
@@ -15,6 +16,7 @@ public class DashboardSummaryDto {
     private long goalCount;
     private long activeSubscriptionCount;
     private List<CategorySpendingDto> topSpendingCategories;
+    private List<SpendingNudgeDto> nudges = new ArrayList<>();
 
     public DashboardSummaryDto() {
     }
@@ -105,6 +107,14 @@ public class DashboardSummaryDto {
 
     public void setTopSpendingCategories(List<CategorySpendingDto> topSpendingCategories) {
         this.topSpendingCategories = topSpendingCategories;
+    }
+
+    public List<SpendingNudgeDto> getNudges() {
+        return nudges;
+    }
+
+    public void setNudges(List<SpendingNudgeDto> nudges) {
+        this.nudges = nudges != null ? nudges : new ArrayList<>();
     }
 }
 

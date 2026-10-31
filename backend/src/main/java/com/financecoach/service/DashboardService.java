@@ -3,11 +3,16 @@ package com.financecoach.service;
 import com.financecoach.dto.CategorySpendingDto;
 import com.financecoach.dto.DashboardSummaryDto;
 import com.financecoach.dto.FinancialProfileDto;
+import com.financecoach.dto.SpendingNudgeDto;
+import com.financecoach.dto.SubscriptionDto;
+import com.financecoach.entity.Budget;
 import com.financecoach.entity.GoalStatus;
 import com.financecoach.entity.TransactionType;
+import com.financecoach.repository.BudgetRepository;
 import com.financecoach.repository.FinancialGoalRepository;
 import com.financecoach.repository.SubscriptionRepository;
 import com.financecoach.repository.TransactionRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,15 +31,29 @@ public class DashboardService {
     private final FinancialProfileService profileService;
     private final FinancialGoalRepository goalRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final BudgetRepository budgetRepository;
+    private final SubscriptionService subscriptionService;
+
+    @Autowired
+    public DashboardService(TransactionRepository transactionRepository,
+                            FinancialProfileService profileService,
+                            FinancialGoalRepository goalRepository,
+                            SubscriptionRepository subscriptionRepository,
+                            BudgetRepository budgetRepository,
+                            SubscriptionService subscriptionService) {
+        this.transactionRepository = transactionRepository;
+        this.profileService = profileService;
+        this.goalRepository = goalRepository;
+        this.subscriptionRepository = subscriptionRepository;
+        this.budgetRepository = budgetRepository;
+        this.subscriptionService = subscriptionService;
+    }
 
     public DashboardService(TransactionRepository transactionRepository,
                             FinancialProfileService profileService,
                             FinancialGoalRepository goalRepository,
                             SubscriptionRepository subscriptionRepository) {
-        this.transactionRepository = transactionRepository;
-        this.profileService = profileService;
-        this.goalRepository = goalRepository;
-        this.subscriptionRepository = subscriptionRepository;
+        this(transactionRepository, profileService, goalRepository, subscriptionRepository, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -88,6 +107,10 @@ public class DashboardService {
         // 6. Category Spending Breakdown
         List<CategorySpendingDto> topCategories = getCategorySpending(userId, startDate, endDate, totalExpenses);
 
+        // 7. Spending Drift Nudges
+        List<SpendingNudgeDto> nudges = computeNudges(userId, startDate.getMonthValue(), startDate.getYear(),
+            startDate, endDate, totalIncome, totalExpenses, netSavings, savingsRate, profile);
+
         DashboardSummaryDto summary = new DashboardSummaryDto();
         summary.setTotalIncome(totalIncome.setScale(2, RoundingMode.HALF_UP));
         summary.setTotalExpenses(totalExpenses.setScale(2, RoundingMode.HALF_UP));
@@ -100,8 +123,160 @@ public class DashboardService {
         summary.setGoalCount(goalCount);
         summary.setActiveSubscriptionCount(activeSubCount);
         summary.setTopSpendingCategories(topCategories);
+        summary.setNudges(nudges);
 
         return summary;
+    }
+
+    @Transactional(readOnly = true)
+    public List<SpendingNudgeDto> getSpendingNudges(Long userId, Integer month, Integer year) {
+        LocalDate now = LocalDate.now();
+        int targetYear = year != null ? year : now.getYear();
+        int targetMonth = month != null ? month : now.getMonthValue();
+        validatePeriod(targetMonth, targetYear);
+
+        LocalDate startDate = LocalDate.of(targetYear, targetMonth, 1);
+        LocalDate endDate = startDate.with(TemporalAdjusters.lastDayOfMonth());
+
+        BigDecimal totalIncome = transactionRepository.sumAmountByUserIdAndTypeAndDateBetween(
+            userId, TransactionType.INCOME, startDate, endDate
+        );
+        if (totalIncome == null) totalIncome = BigDecimal.ZERO;
+
+        BigDecimal totalExpenses = transactionRepository.sumAmountByUserIdAndTypeAndDateBetween(
+            userId, TransactionType.EXPENSE, startDate, endDate
+        );
+        if (totalExpenses == null) totalExpenses = BigDecimal.ZERO;
+
+        BigDecimal netSavings = totalIncome.subtract(totalExpenses);
+        BigDecimal savingsRate = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        if (totalIncome.compareTo(BigDecimal.ZERO) > 0) {
+            savingsRate = netSavings.divide(totalIncome, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(2, RoundingMode.HALF_UP);
+        }
+
+        FinancialProfileDto profile = profileService.getProfileByUserId(userId);
+        return computeNudges(userId, targetMonth, targetYear, startDate, endDate,
+            totalIncome, totalExpenses, netSavings, savingsRate, profile);
+    }
+
+    private List<SpendingNudgeDto> computeNudges(Long userId, int month, int year, LocalDate startDate, LocalDate endDate,
+                                                BigDecimal totalIncome, BigDecimal totalExpenses,
+                                                BigDecimal netSavings, BigDecimal savingsRate,
+                                                FinancialProfileDto profile) {
+        List<SpendingNudgeDto> nudges = new ArrayList<>();
+
+        // 1. Budget Drifts (Overrun & Warning)
+        if (budgetRepository != null) {
+            List<Budget> budgets = budgetRepository.findByUserIdAndMonthAndYear(userId, month, year);
+            for (Budget b : budgets) {
+                BigDecimal spent = transactionRepository.sumAmountByUserIdAndTypeAndCategoryAndDateBetween(
+                    userId, TransactionType.EXPENSE, b.getCategory(), startDate, endDate
+                );
+                if (spent == null) spent = BigDecimal.ZERO;
+
+                BigDecimal limit = b.getMonthlyLimit();
+                if (limit == null || limit.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+                if (spent.compareTo(limit) > 0) {
+                    BigDecimal overrun = spent.subtract(limit).setScale(2, RoundingMode.HALF_UP);
+                    nudges.add(new SpendingNudgeDto(
+                        "BUDGET_OVERRUN",
+                        "HIGH",
+                        b.getCategory() + " Budget Exceeded!",
+                        String.format("You have spent $%s of your $%s %s budget ($%s over limit).",
+                            spent.setScale(2, RoundingMode.HALF_UP), limit.setScale(2, RoundingMode.HALF_UP),
+                            b.getCategory(), overrun),
+                        b.getCategory(),
+                        limit,
+                        spent,
+                        "/budgets"
+                    ));
+                } else {
+                    BigDecimal ratio = spent.divide(limit, 4, RoundingMode.HALF_UP);
+                    if (ratio.compareTo(BigDecimal.valueOf(0.80)) >= 0) {
+                        BigDecimal pct = ratio.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP);
+                        nudges.add(new SpendingNudgeDto(
+                            "BUDGET_WARNING",
+                            "MEDIUM",
+                            b.getCategory() + " Approaching Limit",
+                            String.format("You have reached %s%% of your $%s %s budget ($%s spent).",
+                                pct.toPlainString(), limit.setScale(2, RoundingMode.HALF_UP),
+                                b.getCategory(), spent.setScale(2, RoundingMode.HALF_UP)),
+                            b.getCategory(),
+                            limit,
+                            spent,
+                            "/budgets"
+                        ));
+                    }
+                }
+            }
+        }
+
+        // 2. Savings Rate Drift
+        if (profile != null && profile.getSavingsTarget() != null && profile.getSavingsTarget().compareTo(BigDecimal.ZERO) > 0) {
+            if (netSavings.compareTo(BigDecimal.ZERO) < 0) {
+                nudges.add(new SpendingNudgeDto(
+                    "SAVINGS_RATE_DRIFT",
+                    "HIGH",
+                    "Negative Monthly Cashflow",
+                    String.format("Expenses ($%s) exceed income ($%s) by $%s this month.",
+                        totalExpenses.setScale(2, RoundingMode.HALF_UP),
+                        totalIncome.setScale(2, RoundingMode.HALF_UP),
+                        totalExpenses.subtract(totalIncome).setScale(2, RoundingMode.HALF_UP)),
+                    "Savings",
+                    profile.getSavingsTarget(),
+                    savingsRate,
+                    "/profile"
+                ));
+            } else if (savingsRate.compareTo(profile.getSavingsTarget()) < 0) {
+                nudges.add(new SpendingNudgeDto(
+                    "SAVINGS_RATE_DRIFT",
+                    "MEDIUM",
+                    "Savings Rate Off Target",
+                    String.format("Current monthly savings rate is %s%%, which is below your target of %s%%.",
+                        savingsRate.toPlainString(), profile.getSavingsTarget().toPlainString()),
+                    "Savings",
+                    profile.getSavingsTarget(),
+                    savingsRate,
+                    "/profile"
+                ));
+            }
+        }
+
+        // 3. Subscription alerts (price change or unused)
+        if (subscriptionService != null) {
+            List<SubscriptionDto> alerts = subscriptionService.getActiveAlerts(userId);
+            for (SubscriptionDto sub : alerts) {
+                if (sub.isPriceChangeAlert()) {
+                    nudges.add(new SpendingNudgeDto(
+                        "SUBSCRIPTION_ALERT",
+                        "MEDIUM",
+                        sub.getName() + " Price Change Detected",
+                        sub.getPriceChangeMessage(),
+                        sub.getCategory(),
+                        sub.getPreviousAmount(),
+                        sub.getNewAmount(),
+                        "/subscriptions"
+                    ));
+                }
+                if (sub.isUnusedAlert()) {
+                    nudges.add(new SpendingNudgeDto(
+                        "SUBSCRIPTION_ALERT",
+                        "INFO",
+                        sub.getName() + " Inactive Subscription",
+                        sub.getUnusedMessage(),
+                        sub.getCategory(),
+                        sub.getAmount(),
+                        BigDecimal.valueOf(sub.getDaysInactive()),
+                        "/subscriptions"
+                    ));
+                }
+            }
+        }
+
+        return nudges;
     }
 
     private void validatePeriod(int month, int year) {

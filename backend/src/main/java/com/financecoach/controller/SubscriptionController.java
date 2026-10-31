@@ -53,6 +53,11 @@ public class SubscriptionController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/alerts")
+    public ResponseEntity<List<SubscriptionDto>> getAlerts(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(service.getActiveAlerts(principal.getId()));
+    }
+
     @GetMapping("/detected")
     public ResponseEntity<List<DetectedSubscriptionDto>> getDetected(@AuthenticationPrincipal UserPrincipal principal) {
         return ResponseEntity.ok(service.detectSubscriptions(principal.getId()));

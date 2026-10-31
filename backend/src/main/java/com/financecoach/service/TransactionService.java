@@ -12,6 +12,7 @@ import com.financecoach.repository.UserRepository;
 import com.financecoach.util.CsvStatementParser;
 import com.financecoach.util.ParsedStatementRow;
 import com.financecoach.util.PdfStatementParser;
+import com.financecoach.util.SmsStatementParser;
 import com.financecoach.util.StatementImportHelper;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -149,10 +150,19 @@ public class TransactionService {
         try {
             if (name.endsWith(".pdf") || contentType.equals("application/pdf")) {
                 rows = PdfStatementParser.parse(file.getInputStream());
-            } else if (name.endsWith(".csv") || name.endsWith(".txt") || contentType.equals("text/csv") || contentType.equals("application/vnd.ms-excel")) {
+            } else if (name.endsWith(".sms")) {
+                rows = SmsStatementParser.parse(file.getInputStream());
+            } else if (name.endsWith(".csv") || contentType.equals("text/csv") || contentType.equals("application/vnd.ms-excel")) {
                 rows = CsvStatementParser.parse(file.getInputStream());
+            } else if (name.endsWith(".txt")) {
+                // For .txt files, try CSV format first; if it has no CSV headers, fall back to SMS statement parsing
+                try {
+                    rows = CsvStatementParser.parse(file.getInputStream());
+                } catch (Exception ex) {
+                    rows = SmsStatementParser.parse(file.getInputStream());
+                }
             } else {
-                throw new BadRequestException("Unsupported file format: " + file.getOriginalFilename() + ". Please upload a CSV or PDF file.");
+                throw new BadRequestException("Unsupported file format: " + file.getOriginalFilename() + ". Please upload a CSV, PDF, or SMS text file.");
             }
         } catch (BadRequestException e) {
             throw e;
@@ -160,23 +170,38 @@ public class TransactionService {
             throw new BadRequestException("Unable to read statement file: " + e.getMessage());
         }
 
+        return saveParsedRows(u, rows);
+    }
+
+    @Transactional
+    public Map<String, Object> importSms(Long userId, String smsText) {
+        if (smsText == null || smsText.isBlank()) {
+            throw new BadRequestException("SMS text cannot be blank");
+        }
+
+        User u = user(userId);
+        List<ParsedStatementRow> rows = SmsStatementParser.parseText(smsText);
+        return saveParsedRows(u, rows);
+    }
+
+    private Map<String, Object> saveParsedRows(User u, List<ParsedStatementRow> rows) {
         int imported = 0;
         int duplicates = 0;
         List<Transaction> toSave = new ArrayList<>();
 
         for (ParsedStatementRow row : rows) {
             String hash = StatementImportHelper.computeImportHash(
-                userId, row.getDate(), row.getAmount(), row.getDescription()
+                u.getId(), row.getDate(), row.getAmount(), row.getDescription()
             );
 
             // Duplicate prevention
-            if (repository.existsByUserIdAndImportHash(userId, hash)) {
+            if (repository.existsByUserIdAndImportHash(u.getId(), hash)) {
                 duplicates++;
                 continue;
             }
 
             // Automatic rule-based categorization
-            String category = categorizationService.categorize(userId, row.getDescription(), row.getMerchant());
+            String category = categorizationService.categorize(u.getId(), row.getDescription(), row.getMerchant());
 
             Transaction t = new Transaction(
                 u,

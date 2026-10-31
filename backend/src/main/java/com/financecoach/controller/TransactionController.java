@@ -1,6 +1,7 @@
 package com.financecoach.controller;
 
 import com.financecoach.dto.CategorizationRuleDto;
+import com.financecoach.dto.SmsImportRequest;
 import com.financecoach.dto.TransactionDto;
 import com.financecoach.dto.TransactionRequest;
 import com.financecoach.entity.TransactionType;
@@ -83,6 +84,15 @@ public class TransactionController {
         @RequestPart("file") MultipartFile file
     ) {
         Map<String, Object> result = service.importStatement(p.getId(), file);
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    @PostMapping("/import-sms")
+    public ResponseEntity<Map<String, Object>> importSms(
+        @AuthenticationPrincipal UserPrincipal p,
+        @Valid @RequestBody SmsImportRequest request
+    ) {
+        Map<String, Object> result = service.importSms(p.getId(), request.getSmsText());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 

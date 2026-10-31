@@ -44,7 +44,25 @@ public class SubscriptionService {
         List<Subscription> subscriptions = activeOnly
                 ? repo.findByUserIdAndActive(uid, true, Sort.by("nextPaymentDate"))
                 : repo.findByUserId(uid, Sort.by("nextPaymentDate"));
-        return subscriptions.stream().map(this::dto).toList();
+
+        if (subscriptions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LocalDate since = LocalDate.now().minusDays(120);
+        List<Transaction> recentTxs = txRepo.findByUserIdAndTransactionDateBetween(
+                uid, since, LocalDate.now(), Sort.by("transactionDate").descending());
+
+        return subscriptions.stream()
+                .map(sub -> enrichWithAlerts(sub, recentTxs))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SubscriptionDto> getActiveAlerts(Long uid) {
+        return list(uid, true).stream()
+                .filter(s -> s.isPriceChangeAlert() || s.isUnusedAlert())
+                .toList();
     }
 
     @Transactional
@@ -262,6 +280,87 @@ public class SubscriptionService {
             }
         }
         return sb.toString();
+    }
+
+    private SubscriptionDto enrichWithAlerts(Subscription sub, List<Transaction> recentTxs) {
+        SubscriptionDto dto = dto(sub);
+        if (!sub.isActive()) {
+            return dto;
+        }
+
+        String subNorm = normalizeMerchant(sub.getName()).toLowerCase();
+        List<Transaction> matching = recentTxs.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> matchesSubscription(sub, subNorm, t))
+                .toList();
+
+        if (matching.isEmpty()) {
+            // No transactions found in recent history
+            long daysSinceCreation = sub.getCreatedAt() != null
+                    ? Math.max(0, ChronoUnit.DAYS.between(sub.getCreatedAt().toLocalDate(), LocalDate.now()))
+                    : 120;
+            if (daysSinceCreation >= 45) {
+                dto.setUnusedAlert(true);
+                dto.setDaysInactive(daysSinceCreation);
+                dto.setUnusedMessage(String.format("No charges detected for %s in the last %d days. Consider cancelling if unused.",
+                        sub.getName(), daysSinceCreation));
+            }
+            return dto;
+        }
+
+        // Most recent transaction (already sorted descending by transactionDate)
+        Transaction latest = matching.get(0);
+        BigDecimal subAmt = sub.getAmount().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal latestAmt = latest.getAmount().setScale(2, RoundingMode.HALF_UP);
+
+        // 1. Price Change Alert: difference >= $0.50
+        BigDecimal diff = latestAmt.subtract(subAmt).abs();
+        if (diff.compareTo(BigDecimal.valueOf(0.50)) >= 0) {
+            dto.setPriceChangeAlert(true);
+            dto.setPreviousAmount(subAmt);
+            dto.setNewAmount(latestAmt);
+            if (latestAmt.compareTo(subAmt) > 0) {
+                dto.setPriceChangeMessage(String.format("Price increased from $%s to $%s (+$%s) on %s",
+                        subAmt.toPlainString(), latestAmt.toPlainString(),
+                        latestAmt.subtract(subAmt).toPlainString(), latest.getTransactionDate()));
+            } else {
+                dto.setPriceChangeMessage(String.format("Price decreased from $%s to $%s (-$%s) on %s",
+                        subAmt.toPlainString(), latestAmt.toPlainString(),
+                        subAmt.subtract(latestAmt).toPlainString(), latest.getTransactionDate()));
+            }
+        }
+
+        // 2. Unused / Inactive Alert based on cadence
+        long inactiveDays = ChronoUnit.DAYS.between(latest.getTransactionDate(), LocalDate.now());
+        long thresholdDays = switch (sub.getBillingFrequency()) {
+            case WEEKLY -> 14;
+            case MONTHLY -> 45;
+            case QUARTERLY -> 105;
+            case YEARLY -> 380;
+        };
+
+        if (inactiveDays >= thresholdDays) {
+            dto.setUnusedAlert(true);
+            dto.setDaysInactive(inactiveDays);
+            dto.setUnusedMessage(String.format("No charge detected for %d days (%s). Consider reviewing or cancelling if no longer used.",
+                    inactiveDays, sub.getName()));
+        }
+
+        return dto;
+    }
+
+    private boolean matchesSubscription(Subscription sub, String subNorm, Transaction t) {
+        String desc = t.getDescription() != null ? t.getDescription().toLowerCase() : "";
+        String merch = t.getMerchant() != null ? t.getMerchant().toLowerCase() : "";
+        String txNorm = normalizeMerchant(t.getDescription()).toLowerCase();
+
+        if (txNorm.equals(subNorm) || txNorm.contains(subNorm) || subNorm.contains(txNorm)) {
+            return true;
+        }
+        if (merch.contains(subNorm) || subNorm.contains(merch)) {
+            return true;
+        }
+        return desc.contains(subNorm) || desc.contains(sub.getName().toLowerCase());
     }
 
     private SubscriptionDto dto(Subscription subscription) {
