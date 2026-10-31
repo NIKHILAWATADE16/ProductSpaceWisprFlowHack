@@ -193,16 +193,16 @@ public class FinancialContextBuilder {
     private String buildPromptText(FinancialContextSummary summary) {
         StringBuilder sb = new StringBuilder();
         sb.append("=== USER FINANCIAL CONTEXT ===\n");
-        sb.append(String.format("- Monthly Income: $%s\n", summary.getMonthlyIncome()));
-        sb.append(String.format("- Monthly Expenses: $%s\n", summary.getMonthlyExpenses()));
-        sb.append(String.format("- Monthly Net Savings: $%s\n", summary.getNetSavings()));
+        sb.append(String.format("- Monthly Income: ₹%s\n", summary.getMonthlyIncome()));
+        sb.append(String.format("- Monthly Expenses: ₹%s\n", summary.getMonthlyExpenses()));
+        sb.append(String.format("- Monthly Net Savings: ₹%s\n", summary.getNetSavings()));
         sb.append(String.format("- Current Savings Rate: %s%% (Target: %s%%)\n",
                 summary.getSavingsRate(), summary.getTargetSavingsRate()));
 
         if (!summary.getTopCategories().isEmpty()) {
             sb.append("\nTOP EXPENSE CATEGORIES:\n");
             for (FinancialContextSummary.CategoryDetail cd : summary.getTopCategories()) {
-                sb.append(String.format("- %s: $%s (%.1f%% of expenses)\n",
+                sb.append(String.format("- %s: ₹%s (%.1f%% of expenses)\n",
                         cd.category(), cd.amount(), cd.percentOfExpenses()));
             }
         }
@@ -210,7 +210,7 @@ public class FinancialContextBuilder {
         if (!summary.getActiveGoals().isEmpty()) {
             sb.append("\nACTIVE FINANCIAL GOALS:\n");
             for (FinancialContextSummary.GoalDetail gd : summary.getActiveGoals()) {
-                sb.append(String.format("- %s: Saved $%s of $%s (Remaining: $%s | Target: %s, %d mo left | Req: $%s/mo)\n",
+                sb.append(String.format("- %s: Saved ₹%s of ₹%s (Remaining: ₹%s | Target: %s, %d mo left | Req: ₹%s/mo)\n",
                         gd.name(), gd.currentAmount(), gd.targetAmount(),
                         gd.remainingAmount(), gd.targetDate(), gd.monthsRemaining(), gd.requiredMonthlySavings()));
             }
@@ -219,16 +219,16 @@ public class FinancialContextBuilder {
         if (!summary.getActiveBudgets().isEmpty()) {
             sb.append("\nACTIVE BUDGETS:\n");
             for (FinancialContextSummary.BudgetDetail bd : summary.getActiveBudgets()) {
-                sb.append(String.format("- %s: Spent $%s of $%s limit (%.1f%%%s)\n",
+                sb.append(String.format("- %s: Spent ₹%s of ₹%s limit (%.1f%%%s)\n",
                         bd.category(), bd.currentSpent(), bd.monthlyLimit(),
                         bd.utilizationPercent(), bd.exceeded() ? " - OVERRUN" : ""));
             }
         }
 
         if (!summary.getActiveSubscriptions().isEmpty()) {
-            sb.append(String.format("\nRECURRING SUBSCRIPTIONS (Total: $%s/mo):\n", summary.getTotalMonthlySubscriptions()));
+            sb.append(String.format("\nRECURRING SUBSCRIPTIONS (Total: ₹%s/mo):\n", summary.getTotalMonthlySubscriptions()));
             for (FinancialContextSummary.SubscriptionDetail sd : summary.getActiveSubscriptions()) {
-                sb.append(String.format("- %s: $%s (%s, ~$%.2f/mo)\n",
+                sb.append(String.format("- %s: ₹%s (%s, ~₹%.2f/mo)\n",
                         sd.name(), sd.amount(), sd.frequency(), sd.monthlyEquivalent().doubleValue()));
             }
         }

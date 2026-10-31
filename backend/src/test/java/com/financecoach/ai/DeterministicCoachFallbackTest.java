@@ -40,6 +40,15 @@ public class DeterministicCoachFallbackTest {
     }
 
     @Test
+    void coachResponsesUseIndianRupeeSymbol() {
+        String response = fallback.generateFallback(summary, "Where is my spending highest?");
+
+        assertTrue(response.contains("₹3,500.00"));
+        assertTrue(response.contains("₹5,000.00"));
+        assertFalse(response.contains("$"));
+    }
+
+    @Test
     void generatesSpendingAdvice() {
         String res = fallback.generateFallback(summary, "Where is my spending highest?");
         assertNotNull(res);
@@ -75,7 +84,7 @@ public class DeterministicCoachFallbackTest {
         String res = fallback.generateFallback(summary, "Give me an overview");
         assertNotNull(res);
         assertTrue(res.contains("Monthly Income"));
-        assertTrue(res.contains("5000.00"));
+        assertTrue(res.contains("₹5,000.00"));
     }
 }
 

@@ -43,7 +43,7 @@ public class CoachService {
             "1. Ground all answers strictly in the user's provided financial numbers (income, expenses, savings rate, goals, budgets, subscriptions). Never invent or hallucinate financial numbers.\n" +
             "2. STRICT PROHIBITION: DO NOT recommend specific individual stocks, crypto tokens, mutual funds, ETFs, or market securities.\n" +
             "3. STRICT PROHIBITION: DO NOT guarantee investment returns, yields, interest rates, or market outcomes.\n" +
-            "4. Distinguish clearly between calculated facts (e.g. 'You spent $800 on dining out') and practical suggestions (e.g. 'Setting a weekly dining budget of $150 could save $200/mo').\n" +
+            "4. Distinguish clearly between calculated facts (e.g. 'You spent ₹800 on dining out') and practical suggestions (e.g. 'Setting a weekly dining budget of ₹150 could save ₹200/mo').\n" +
             "5. Format responses clearly with markdown bolding and bullet points for readability. Keep replies focused, empathetic, and concise (2-4 paragraphs maximum).";
 
     private final TransactionRepository tx;

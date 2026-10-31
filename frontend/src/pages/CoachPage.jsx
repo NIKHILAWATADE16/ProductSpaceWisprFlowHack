@@ -22,7 +22,7 @@ function renderInline(text) {
 }
 
 function CoachResponse({ content }) {
-  const blocks = String(content || '').split(/\n\s*\n/).filter(Boolean);
+  const blocks = localizeCurrencyText(String(content || '')).split(/\n\s*\n/).filter(Boolean);
   return <div className="space-y-3">
     {blocks.map((block, index) => {
       const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);

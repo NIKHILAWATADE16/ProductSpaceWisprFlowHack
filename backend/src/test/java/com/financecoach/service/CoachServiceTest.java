@@ -58,6 +58,22 @@ public class CoachServiceTest {
     }
 
     @Test
+    void systemInstructionUsesIndianRupees() {
+        when(contextBuilder.buildContext(1L)).thenReturn(dummySummary);
+        when(geminiClient.isConfigured()).thenReturn(true);
+        when(geminiClient.generateContent(anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    assertTrue(invocation.getArgument(0, String.class).contains("₹800"));
+                    assertFalse(invocation.getArgument(0, String.class).contains("$800"));
+                    return Optional.of("₹800");
+                });
+
+        CoachResponse response = coachService.chat(1L, "Where is my spending highest?");
+
+        assertEquals("₹800", response.getResponse());
+    }
+
+    @Test
     void chatReturnsGeminiWhenAvailable() {
         when(contextBuilder.buildContext(1L)).thenReturn(dummySummary);
         when(geminiClient.isConfigured()).thenReturn(true);

@@ -38,7 +38,10 @@ export function monthLabel(month, year) {
 }
 
 export function localizeCurrencyText(value) {
-  return typeof value === 'string' ? value.replace(/\$/g, '₹') : value;
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/\$\s*([\d,]+(?:\.\d{1,2})?)/g, (_, amount) => formatCurrency(amount.replace(/,/g, '')))
+    .replace(/\$/g, '₹');
 }
 
 export function getErrorMessage(error, fallback = 'Something went wrong. Please try again.') {
