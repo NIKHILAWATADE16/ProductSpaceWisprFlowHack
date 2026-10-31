@@ -144,7 +144,9 @@ export default function TransactionsPage() {
     try {
       if (form.id) {
         await axiosClient.put(`/transactions/${form.id}`, payload);
-        setToast('Transaction updated and categorization rule learned');
+        const existing = transactions.find((item) => item.id === form.id);
+        const categoryChanged = existing && form.category !== (existing.category || 'Other');
+        setToast(categoryChanged ? `Category updated — future ${form.merchant || form.description} transactions will use ${form.category}` : 'Transaction updated');
       } else {
         await axiosClient.post('/transactions', payload);
         setToast('Transaction added');

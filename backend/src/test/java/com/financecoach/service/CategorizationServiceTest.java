@@ -48,6 +48,39 @@ class CategorizationServiceTest {
     }
 
     @Test
+    void testImportedNarrationsUseBuiltInMerchantCatalog() {
+        when(ruleRepository.findAllRulesForUser(1L)).thenReturn(List.of());
+
+        assertEquals("Food & Dining", service.categorize(1L,
+                "UPI/SWIGGY/ORDER/987654321", null));
+        assertEquals("Transport", service.categorize(1L,
+                "POS/UBER TRIP/TERM 123456", null));
+        assertEquals("Shopping", service.categorize(1L,
+                "AMAZON MARKETPLACE ORDER 12345", null));
+        assertEquals("Entertainment", service.categorize(1L,
+                "NETFLIX.COM *1234", null));
+        assertEquals("Utilities", service.categorize(1L,
+                "JIO RECHARGE REF 123456", null));
+        assertEquals("Healthcare", service.categorize(1L,
+                "APOLLO PHARMACY POS 123456", null));
+    }
+
+    @Test
+    void testExplicitMerchantIsUsedWhenDescriptionIsNoisy() {
+        when(ruleRepository.findAllRulesForUser(1L)).thenReturn(List.of());
+
+        assertEquals("Food & Dining", service.categorize(1L,
+                "UPI/REF/987654321", "Zomato"));
+    }
+
+    @Test
+    void testUnknownMerchantRemainsOther() {
+        when(ruleRepository.findAllRulesForUser(1L)).thenReturn(List.of());
+
+        assertEquals("Other", service.categorize(1L, "UPI/REF/987654321", "Local Merchant"));
+    }
+
+    @Test
     void testUserOverrideTakesPrecedence() {
         // User created an override for swiggy -> "Office Expense"
         CategorizationRule userOverride = new CategorizationRule(new User("Alex", "alex@test.com", "pass"), "swiggy", "Office Expense", true);

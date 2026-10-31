@@ -34,6 +34,7 @@ import com.financecoach.repository.UserRepository;
 public class SubscriptionService {
 
     private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
+    private static final int RECURRING_LOOKBACK_DAYS = 800;
 
     private final SubscriptionRepository repo;
     private final UserRepository users;
@@ -55,7 +56,7 @@ public class SubscriptionService {
             return Collections.emptyList();
         }
 
-        LocalDate since = LocalDate.now().minusDays(120);
+        LocalDate since = LocalDate.now().minusDays(RECURRING_LOOKBACK_DAYS);
         List<Transaction> recentTxs = txRepo.findByUserIdAndTransactionDateBetween(
                 uid, since, LocalDate.now(), Sort.by("transactionDate").descending());
 
@@ -103,7 +104,7 @@ public class SubscriptionService {
      */
     @Transactional(readOnly = true)
     public List<DetectedSubscriptionDto> detectSubscriptions(Long uid) {
-        LocalDate since = LocalDate.now().minusDays(120);
+        LocalDate since = LocalDate.now().minusDays(RECURRING_LOOKBACK_DAYS);
         List<Transaction> transactions = txRepo.findByUserIdAndTransactionDateBetween(
                 uid, since, LocalDate.now(), Sort.by("transactionDate").ascending());
 
@@ -111,7 +112,9 @@ public class SubscriptionService {
         Map<String, List<Transaction>> merchantGroups = new HashMap<>();
         for (Transaction t : transactions) {
             if (t.getType() != TransactionType.EXPENSE) continue;
-            String normalized = normalizeMerchant(t.getDescription());
+            String source = t.getMerchant() != null && !t.getMerchant().isBlank()
+                    ? t.getMerchant() : t.getDescription();
+            String normalized = normalizeMerchant(source);
             merchantGroups.computeIfAbsent(normalized, k -> new ArrayList<>()).add(t);
         }
 
@@ -119,6 +122,7 @@ public class SubscriptionService {
 
         for (Map.Entry<String, List<Transaction>> entry : merchantGroups.entrySet()) {
             String merchant = entry.getKey();
+            if ("Unknown".equalsIgnoreCase(merchant)) continue;
             List<Transaction> group = entry.getValue();
 
             // Need at least 2 occurrences to establish a recurring pattern
@@ -304,8 +308,9 @@ public class SubscriptionService {
             // No transactions found in recent history
             long daysSinceCreation = sub.getCreatedAt() != null
                     ? Math.max(0, ChronoUnit.DAYS.between(sub.getCreatedAt().toLocalDate(), LocalDate.now()))
-                    : 120;
-            if (daysSinceCreation >= 45) {
+                    : RECURRING_LOOKBACK_DAYS;
+            long thresholdDays = inactivityThresholdDays(sub.getBillingFrequency());
+            if (daysSinceCreation >= thresholdDays) {
                 dto.setUnusedAlert(true);
                 dto.setDaysInactive(daysSinceCreation);
                 dto.setUnusedMessage(String.format("No charges detected for %s in the last %d days. Consider cancelling if unused.",
@@ -319,18 +324,18 @@ public class SubscriptionService {
         BigDecimal subAmt = sub.getAmount().setScale(2, RoundingMode.HALF_UP);
         BigDecimal latestAmt = latest.getAmount().setScale(2, RoundingMode.HALF_UP);
 
-        // 1. Price Change Alert: difference >= $0.50
+        // 1. Price Change Alert: difference >= ₹0.50
         BigDecimal diff = latestAmt.subtract(subAmt).abs();
         if (diff.compareTo(BigDecimal.valueOf(0.50)) >= 0) {
             dto.setPriceChangeAlert(true);
             dto.setPreviousAmount(subAmt);
             dto.setNewAmount(latestAmt);
             if (latestAmt.compareTo(subAmt) > 0) {
-                dto.setPriceChangeMessage(String.format("Price increased from $%s to $%s (+$%s) on %s",
+                dto.setPriceChangeMessage(String.format("Price increased from ₹%s to ₹%s (+₹%s) on %s",
                         subAmt.toPlainString(), latestAmt.toPlainString(),
                         latestAmt.subtract(subAmt).toPlainString(), latest.getTransactionDate()));
             } else {
-                dto.setPriceChangeMessage(String.format("Price decreased from $%s to $%s (-$%s) on %s",
+                dto.setPriceChangeMessage(String.format("Price decreased from ₹%s to ₹%s (-₹%s) on %s",
                         subAmt.toPlainString(), latestAmt.toPlainString(),
                         subAmt.subtract(latestAmt).toPlainString(), latest.getTransactionDate()));
             }
@@ -338,12 +343,7 @@ public class SubscriptionService {
 
         // 2. Unused / Inactive Alert based on cadence
         long inactiveDays = ChronoUnit.DAYS.between(latest.getTransactionDate(), LocalDate.now());
-        long thresholdDays = switch (sub.getBillingFrequency()) {
-            case WEEKLY -> 14;
-            case MONTHLY -> 45;
-            case QUARTERLY -> 105;
-            case YEARLY -> 380;
-        };
+        long thresholdDays = inactivityThresholdDays(sub.getBillingFrequency());
 
         if (inactiveDays >= thresholdDays) {
             dto.setUnusedAlert(true);
@@ -355,12 +355,23 @@ public class SubscriptionService {
         return dto;
     }
 
+    private long inactivityThresholdDays(BillingFrequency frequency) {
+        return switch (frequency) {
+            case WEEKLY -> 14;
+            case MONTHLY -> 45;
+            case QUARTERLY -> 105;
+            case YEARLY -> 380;
+        };
+    }
+
     private boolean matchesSubscription(Subscription sub, String subNorm, Transaction t) {
         String desc = t.getDescription() != null ? t.getDescription().toLowerCase() : "";
         String merch = t.getMerchant() != null ? t.getMerchant().toLowerCase() : "";
         String txNorm = normalizeMerchant(t.getDescription()).toLowerCase();
+        String merchantNorm = normalizeMerchant(t.getMerchant()).toLowerCase();
 
-        if (txNorm.equals(subNorm) || txNorm.contains(subNorm) || subNorm.contains(txNorm)) {
+        if (txNorm.equals(subNorm) || txNorm.contains(subNorm) || subNorm.contains(txNorm)
+                || merchantNorm.equals(subNorm) || merchantNorm.contains(subNorm) || subNorm.contains(merchantNorm)) {
             return true;
         }
         if (merch.contains(subNorm) || subNorm.contains(merch)) {

@@ -102,6 +102,42 @@ public class SubscriptionServiceTest {
     }
 
     @Test
+    void detectsYearlyRecurringSubscriptionWithLongLookback() {
+        LocalDate now = LocalDate.now();
+        Transaction t1 = new Transaction(testUser, "ANNUAL CLOUD PLAN", new BigDecimal("120.00"),
+                now.minusDays(365), TransactionType.EXPENSE, "Subscriptions", "Cloud Plan", "Card", false);
+        Transaction t2 = new Transaction(testUser, "ANNUAL CLOUD PLAN", new BigDecimal("120.00"),
+                now.minusDays(10), TransactionType.EXPENSE, "Subscriptions", "Cloud Plan", "Card", false);
+
+        when(txRepo.findByUserIdAndTransactionDateBetween(eq(1L), any(LocalDate.class), any(LocalDate.class), any(Sort.class)))
+                .thenReturn(List.of(t1, t2));
+        when(repo.existsByUserIdAndNameIgnoreCase(1L, "Cloud Plan")).thenReturn(false);
+
+        List<DetectedSubscriptionDto> detected = service.detectSubscriptions(1L);
+
+        assertEquals(1, detected.size());
+        assertEquals(BillingFrequency.YEARLY, detected.get(0).getBillingFrequency());
+    }
+
+    @Test
+    void matchesSubscriptionUsingTransactionMerchantField() {
+        Subscription sub = new Subscription(testUser, "Cloud Plan", new BigDecimal("10.00"),
+                BillingFrequency.MONTHLY, LocalDate.now().plusDays(10), "Subscriptions", true);
+        sub.setId(3L);
+        Transaction transaction = new Transaction(testUser, "AUTOPAY REF 123", new BigDecimal("12.00"),
+                LocalDate.now().minusDays(3), TransactionType.EXPENSE, "Subscriptions", "Cloud Plan", "Card", false);
+
+        when(repo.findByUserIdAndActive(eq(1L), eq(true), any(Sort.class))).thenReturn(List.of(sub));
+        when(txRepo.findByUserIdAndTransactionDateBetween(eq(1L), any(LocalDate.class), any(LocalDate.class), any(Sort.class)))
+                .thenReturn(List.of(transaction));
+
+        SubscriptionDto result = service.list(1L, true).get(0);
+
+        assertTrue(result.isPriceChangeAlert());
+        assertEquals(new BigDecimal("12.00"), result.getNewAmount());
+    }
+
+    @Test
     void createsSubscriptionSuccessfully() {
         when(users.findById(1L)).thenReturn(Optional.of(testUser));
         Subscription saved = new Subscription(testUser, "Gym", new BigDecimal("45.00"),

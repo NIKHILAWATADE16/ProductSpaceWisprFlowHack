@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -13,33 +12,13 @@ import ReportsPage from './pages/ReportsPage';
 import ProfilePage from './pages/ProfilePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import axiosClient from './api/axiosClient';
 
 function AppRoutes() {
-  const [backendConnected, setBackendConnected] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const checkHealth = () => axiosClient.get('/health')
-      .then(({ data }) => {
-        if (active) setBackendConnected(data?.status === 'UP' && data?.database === 'CONNECTED');
-      })
-      .catch(() => {
-        if (active) setBackendConnected(false);
-      });
-    checkHealth();
-    const interval = window.setInterval(checkHealth, 30_000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, []);
-
   return <Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route path="/register" element={<RegisterPage />} />
     <Route element={<ProtectedRoute />}>
-      <Route element={<MainLayout backendConnected={backendConnected} />}>
+      <Route element={<MainLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/budgets" element={<BudgetsPage />} />

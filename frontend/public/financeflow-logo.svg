@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">FinanceFlow</title>
+  <desc id="desc">FinanceFlow blue and indigo spark logo</desc>
+  <defs>
+    <linearGradient id="mark" x1="10" y1="54" x2="54" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#111827"/>
+  <path d="M32 10l4.4 13.6L50 28l-13.6 4.4L32 46l-4.4-13.6L14 28l13.6-4.4L32 10z" fill="url(#mark)"/>
+  <path d="M47 39l2.2 6.8L56 48l-6.8 2.2L47 57l-2.2-6.8L38 48l6.8-2.2L47 39z" fill="#93c5fd"/>
+</svg>
