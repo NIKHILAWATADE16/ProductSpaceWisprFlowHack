@@ -78,3 +78,4 @@ public class ProfileUpdateRequest {
         this.savingsTarget = savingsTarget;
     }
 }
+

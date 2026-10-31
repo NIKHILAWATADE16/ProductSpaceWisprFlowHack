@@ -107,3 +107,4 @@ public class DashboardSummaryDto {
         this.topSpendingCategories = topSpendingCategories;
     }
 }
+

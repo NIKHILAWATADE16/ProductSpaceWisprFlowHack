@@ -40,3 +40,4 @@ public class DashboardController {
         return ResponseEntity.ok(spending);
     }
 }
+

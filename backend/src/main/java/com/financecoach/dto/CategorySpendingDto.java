@@ -50,3 +50,4 @@ public class CategorySpendingDto {
         this.transactionCount = transactionCount;
     }
 }
+

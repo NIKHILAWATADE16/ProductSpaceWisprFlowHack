@@ -148,3 +148,4 @@ public class DashboardService {
         return getCategorySpending(userId, startDate, endDate, totalExpenses);
     }
 }
+

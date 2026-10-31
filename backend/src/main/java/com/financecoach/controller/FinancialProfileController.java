@@ -34,3 +34,4 @@ public class FinancialProfileController {
         return ResponseEntity.ok(updated);
     }
 }
+
