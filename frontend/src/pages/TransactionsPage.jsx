@@ -78,6 +78,7 @@ export default function TransactionsPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState('');
   const [importResult, setImportResult] = useState(null);
   const fileRef = useRef(null);
@@ -170,25 +171,55 @@ export default function TransactionsPage() {
   };
 
   const importFile = async (event) => {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
     if (!file) return;
+
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+    const supportedTypes = ['.csv', '.txt', '.pdf'];
+    const hasSupportedExtension = supportedTypes.some((extension) => file.name.toLowerCase().endsWith(extension));
+    if (!hasSupportedExtension && !['text/csv', 'text/plain', 'application/pdf'].includes(file.type)) {
+      setError('Unsupported file type. Upload a CSV, TXT, or PDF statement.');
+      input.value = '';
+      return;
+    }
+    if (file.size === 0) {
+      setError('The selected file is empty. Choose a statement with transaction rows.');
+      input.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('The statement is too large. Upload a file smaller than 10 MB.');
+      input.value = '';
+      return;
+    }
+
     const body = new FormData();
-    body.append('file', file);
+    body.append('file', file, file.name);
     setError('');
+    setImporting(true);
     try {
-      const { data } = await axiosClient.post('/transactions/import', body);
+      const { data } = await axiosClient.post('/transactions/import', body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const imported = data?.imported ?? data?.importedCount ?? 0;
+      const skipped = data?.skipped ?? data?.skippedDuplicates ?? 0;
       setImportResult({
-        imported: data?.imported ?? data?.importedCount ?? 0,
-        skipped: data?.skipped ?? data?.skippedDuplicates ?? 0,
-        totalParsed: data?.totalParsed ?? 0,
+        imported,
+        skipped,
+        totalParsed: data?.totalParsed ?? imported + skipped,
       });
       setModal('import');
-      setToast(`${data?.imported ?? data?.importedCount ?? 0} transactions imported`);
+      setToast(`${imported} transactions imported`);
       await load();
     } catch (err) {
-      setError(getErrorMessage(err, 'This statement could not be imported. Upload a supported CSV or text-based PDF.'));
+      const fallback = isPdf
+        ? 'This PDF could not be imported. Upload a text-based PDF statement; scanned or password-protected PDFs are not supported.'
+        : 'This statement could not be imported. Upload a supported CSV or TXT statement.';
+      setError(getErrorMessage(err, fallback));
     } finally {
-      event.target.value = '';
+      setImporting(false);
+      input.value = '';
     }
   };
 
@@ -212,7 +243,7 @@ export default function TransactionsPage() {
       action={<div className="flex flex-wrap gap-2">
         <input ref={fileRef} type="file" accept=".csv,.txt,.pdf" onChange={importFile} className="hidden" />
         <Button variant="secondary" onClick={() => setModal('rules')}><Settings2 className="h-4 w-4" />Rules</Button>
-        <Button variant="secondary" onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" />Import</Button>
+        <Button variant="secondary" disabled={importing} onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" />{importing ? 'Importing…' : 'Import statement'}</Button>
         <Button onClick={openCreate}><Plus className="h-4 w-4" />Add transaction</Button>
       </div>}
     />

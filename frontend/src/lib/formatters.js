@@ -19,7 +19,9 @@ export function formatPercent(value, fallback = '0%') {
 
 export function formatDate(value, options = {}) {
   if (!value) return '—';
-  const date = new Date(value);
+  const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('en-IN', {
     day: 'numeric',
@@ -36,7 +38,14 @@ export function monthLabel(month, year) {
 }
 
 export function getErrorMessage(error, fallback = 'Something went wrong. Please try again.') {
-  return error?.response?.data?.message || error?.response?.data?.error || error?.message || fallback;
+  const data = error?.response?.data;
+  if (data?.validationErrors && typeof data.validationErrors === 'object') {
+    const details = Object.entries(data.validationErrors)
+      .map(([field, message]) => `${field}: ${message}`)
+      .join(' • ');
+    if (details) return details;
+  }
+  return data?.message || data?.error || error?.message || fallback;
 }
 
 export function clamp(value, min = 0, max = 100) {

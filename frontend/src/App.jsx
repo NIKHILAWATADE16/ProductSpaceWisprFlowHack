@@ -19,9 +19,20 @@ function AppRoutes() {
   const [backendConnected, setBackendConnected] = useState(false);
 
   useEffect(() => {
-    axiosClient.get('/health')
-      .then(({ data }) => setBackendConnected(data?.status === 'UP'))
-      .catch(() => setBackendConnected(false));
+    let active = true;
+    const checkHealth = () => axiosClient.get('/health')
+      .then(({ data }) => {
+        if (active) setBackendConnected(data?.status === 'UP' && data?.database === 'CONNECTED');
+      })
+      .catch(() => {
+        if (active) setBackendConnected(false);
+      });
+    checkHealth();
+    const interval = window.setInterval(checkHealth, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, []);
 
   return <Routes>

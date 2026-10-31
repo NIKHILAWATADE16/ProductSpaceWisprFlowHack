@@ -1,8 +1,3 @@
-import axios from 'axios'
-
-const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
-})
-
-export default api
+// Deprecated: use src/api/axiosClient.js for authenticated API requests.
+// This module remains as a compatibility re-export for older imports.
+export { default } from '../api/axiosClient';

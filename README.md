@@ -14,7 +14,7 @@ The project is designed as a full-stack software development submission demonstr
 - AI-assisted financial coaching with a deterministic fallback
 - Responsive data visualization and error handling
 
-> **Implementation status:** The frontend experience and backend MVP contracts are implemented for authentication, strict email validation, profile, dashboard, transaction CRUD, CSV/PDF statement parsing, duplicate prevention, automatic categorization, learned user categorization rules, budget and goal CRUD, subscription creation and confirmation/dismissal, monthly reports, coach fallback responses, and what-if simulations. All visible monetary values use the shared Indian-rupee formatter. Automatic recurring-payment detection, optional LLM integration, frontend build verification, and broader integration-test coverage remain follow-up work. The gap analysis below distinguishes verified functionality from planned hardening so the project does not claim functionality that is not yet present.
+> **Implementation status:** The frontend experience and backend MVP contracts are implemented for authentication, strict email validation, profile, dashboard, transaction CRUD, CSV/PDF statement parsing, duplicate prevention, automatic categorization, learned user categorization rules, budget and goal CRUD, recurring-payment detection and reviewable synchronization, monthly reports, Gemini/deterministic coach responses, and non-mutating what-if simulations. All visible monetary values use the shared Indian-rupee formatter. Frontend build verification and broader integration-test coverage remain follow-up work. The gap analysis below distinguishes verified functionality from planned hardening so the project does not claim functionality that is not yet present.
 
 ---
 
@@ -70,8 +70,8 @@ The AI coach must explain calculated application data rather than inventing fina
 ### Supporting technologies and status
 
 - Apache Commons CSV for CSV bank statement imports — implemented
-- Apache PDFBox dependency is present, but PDF transaction parsing is not implemented yet
-- Deterministic coach fallback — implemented; configurable Claude/LLM provider — planned
+- Apache PDFBox supports the implemented text-based PDF transaction import; scanned/password-protected PDFs remain unsupported
+- Gemini coach integration and deterministic fallback — implemented; provider configuration remains environment-dependent
 - Docker Compose for local PostgreSQL — configured, runtime verification requires Docker Desktop
 - A migration tool such as Flyway for production-safe schema changes — planned
 
@@ -207,16 +207,16 @@ sequenceDiagram
 9. Frontend renders cards, tables, charts, import summaries, and loading/error/empty states.
 ```
 
-> Scanned or password-protected PDFs and unsupported bank layouts return explicit validation errors. Automatic recurring-payment detection remains a follow-up workflow.
+> Scanned or password-protected PDFs and unsupported bank layouts return explicit validation errors. Recurring-payment detection is available as an explicit, reviewable scan with optional user-triggered synchronization.
 
 ### 4.4 Coach workflow
 
 ```text
 1. User submits a question or what-if scenario.
 2. Backend calculates deterministic values for the authenticated user's records.
-3. The current coach returns bounded fallback guidance and never receives credentials or raw statements.
-4. Simulations return baseline and projected values without mutating stored transactions.
-5. Configurable LLM explanations remain a future provider integration.
+3. Gemini may provide a bounded explanation over the returned financial summary; deterministic fallback remains available and neither path receives credentials or raw statements.
+4. Simulations return baseline, projected, and goal-projection values without mutating stored transactions.
+5. The frontend labels provider-backed explanations separately from calculated simulation facts.
 ```
 
 ### 4.5 Monthly report workflow
@@ -324,13 +324,12 @@ Important persistence rules:
 
 ### Remaining API and product gaps
 
-The following are not yet complete:
+The following remain incomplete or intentionally limited:
 
 ```text
-POST   /api/transactions/import for PDF statements
-POST   /api/transactions/{id}/categorize or equivalent correction workflow
-GET    /api/subscriptions with automatically detected recurring payments
-POST   /api/coach/chat backed by an optional external LLM provider
+Transaction import preview/commit and row-level correction before persistence
+Server-side pagination and filter controls for large transaction histories
+Frontend tests, controller contract tests, migrations, OpenAPI, and CI verification
 ```
 
 The frontend uses real API calls and shows loading, empty, or backend-error states rather than fabricating records. The transaction page wires edit/delete actions, import summaries, dynamic categories, and learned-rule management. Budget and goal pages now support edit/delete flows, and the subscription page supports create plus confirm/dismiss actions.
@@ -373,17 +372,18 @@ The frontend uses real API calls and shows loading, empty, or backend-error stat
 
 #### Recurring payments
 
-- Detection algorithm using merchant, amount tolerance, and date frequency
-- Next expected payment calculation from transaction history
-- Automatic suggestion records before confirmation
+- Detection algorithm using merchant, amount tolerance, and date frequency is implemented
+- Next expected payment calculation from transaction history is implemented
+- Reviewable suggestions and explicit bulk synchronization are implemented
+- Per-suggestion confirmation, edit, and detector coverage tests remain future hardening
 
 #### AI coach
 
-- Configurable backend LLM client
-- Minimum-summary prompt construction
-- Provider timeouts, error handling, and rate-limit handling
-- Response labeling for calculated values versus suggestions
-- No-stock/no-guarantee policy tests
+- Gemini-backed explanation with deterministic fallback is implemented
+- Minimum-summary prompt construction and provider boundary are implemented
+- Provider timeout, error, and rate-limit hardening remains
+- Frontend labels calculated simulation facts versus provider/fallback explanations
+- No-stock/no-guarantee policy tests remain
 
 #### Quality and delivery
 
@@ -405,7 +405,7 @@ The frontend uses real API calls and shows loading, empty, or backend-error stat
 ### Phase A — Complete frontend parity and backend hardening
 
 1. **Completed:** Budget and goal edit/delete flows are wired to the ownership-scoped APIs.
-2. **Completed:** Subscription creation and confirm/dismiss controls are wired to the backend.
+2. **Completed:** Subscription creation, confirm/dismiss, detection scan, explicit synchronization, and deletion controls are wired to the backend.
 3. Add controller-level contract tests and consistent pagination.
 4. Return stable response shapes matching the existing frontend.
 5. Add API documentation for the verified endpoint surface.
@@ -640,7 +640,7 @@ Use MockMvc or Testcontainers to verify:
 8. Demonstrate goal progress and monthly savings required.
 9. Import a small supported CSV statement and show duplicate protection.
 10. Correct one category and demonstrate the learned categorization rule.
-11. Add or confirm a recurring subscription.
+11. Scan transactions for recurring-payment suggestions, review confidence/occurrence details, then explicitly track new patterns or add a subscription manually.
 12. Run a what-if simulation that reduces a spending category.
 13. Open the coach and ask why the savings rate changed.
 14. Open the monthly report and show spending versus budget.

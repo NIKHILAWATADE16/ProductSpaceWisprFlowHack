@@ -17,12 +17,20 @@ export default function PageHeader({ icon: Icon, eyebrow, title, description, ac
 }
 
 export function PeriodSelect({ month, year, onChange }) {
+  const current = new Date(year, month - 1, 1);
+  const previous = new Date(year, month - 2, 1);
+  const next = new Date(year, month, 1);
   const value = `${year}-${String(month).padStart(2, '0')}`;
+  const previousValue = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}`;
+  const nextValue = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+  const formatter = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' });
+
   return <label className="relative block">
     <span className="sr-only">Select period</span>
     <select value={value} onChange={(event) => onChange(event.target.value)} className="appearance-none rounded-xl border border-surface-border bg-surface-card py-2.5 pl-3 pr-9 text-sm text-slate-300 outline-none transition focus:border-blue-500">
-      <option value={value}>{new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1))}</option>
-      <option value={`${year}-${String(month - 1 || 12).padStart(2, '0')}`}>Previous month</option>
+      <option value={value}>{formatter.format(current)}</option>
+      <option value={previousValue}>{formatter.format(previous)}</option>
+      <option value={nextValue}>{formatter.format(next)}</option>
     </select>
     <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-slate-500" />
   </label>;
